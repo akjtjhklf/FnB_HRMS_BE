@@ -17,6 +17,13 @@ export const createScheduleAssignmentSchema = z.object({
 
 export const updateScheduleAssignmentSchema = createScheduleAssignmentSchema.partial();
 
+// ====== AUTO SCHEDULE SCHEMA ======
+export const autoScheduleSchema = z.object({
+  scheduleId: z.string().uuid("scheduleId phải là UUID hợp lệ"),
+  overwriteExisting: z.boolean().default(false).optional(),
+  dryRun: z.boolean().default(false).optional(),
+});
+
 export const scheduleAssignmentResponseSchema = z.object({
   id: z.uuid(),
   schedule_id: z.uuid().nullable(),
@@ -36,6 +43,7 @@ export const scheduleAssignmentResponseSchema = z.object({
 // ====== TYPES ======
 export type CreateScheduleAssignmentDto = z.infer<typeof createScheduleAssignmentSchema>;
 export type UpdateScheduleAssignmentDto = z.infer<typeof updateScheduleAssignmentSchema>;
+export type AutoScheduleDto = z.infer<typeof autoScheduleSchema>;
 export type ScheduleAssignmentResponseDto = z.infer<typeof scheduleAssignmentResponseSchema>;
 
 // ====== MAPPER ======
