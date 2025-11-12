@@ -4,8 +4,10 @@ import {
   readItems,
   readItem,
   createItem,
+  createItems,
   updateItem,
   deleteItem,
+  deleteItems,
 } from "@directus/sdk";
 import { HttpError } from "./base";
 
@@ -115,6 +117,83 @@ export class DirectusRepository<
         500,
         "Không thể xóa dữ liệu",
         "DIRECTUS_DELETE_ERROR",
+        error
+      );
+    }
+  }
+
+  /**
+   * Tạo nhiều items cùng lúc
+   */
+  async createMany(data: Partial<T>[]): Promise<T[]> {
+    try {
+      const created = await directus.request(createItems(this.collection, data));
+      return created as T[];
+    } catch (error: any) {
+      throw new HttpError(
+        500,
+        "Không thể tạo nhiều dữ liệu",
+        "DIRECTUS_CREATE_MANY_ERROR",
+        error
+      );
+    }
+  }
+
+  /**
+   * Xóa nhiều items theo filter
+   */
+  async deleteMany(params: { filter?: Record<string, any> }): Promise<void> {
+    try {
+      // Lấy danh sách IDs cần xóa
+      const items = await this.findAll({
+        filter: params.filter,
+        fields: ["id"],
+      });
+      
+      if (items.length === 0) return;
+
+      const ids = items.map((item: any) => item.id);
+      await directus.request(deleteItems(this.collection, ids));
+    } catch (error: any) {
+      throw new HttpError(
+        500,
+        "Không thể xóa nhiều dữ liệu",
+        "DIRECTUS_DELETE_MANY_ERROR",
+        error
+      );
+    }
+  }
+
+  /**
+   * Alias cho findAll (để tương thích với code cũ)
+   */
+  async findMany(params?: {
+    filter?: Record<string, any>;
+    fields?: string[];
+    sort?: string[];
+    limit?: number;
+  }): Promise<T[]> {
+    return this.findAll(params);
+  }
+
+  /**
+   * Tìm một item theo filter
+   */
+  async findOne(params: {
+    filter?: Record<string, any>;
+    fields?: string[];
+  }): Promise<T | null> {
+    try {
+      const result = await this.findAll({
+        ...params,
+        limit: 1,
+      });
+      return result.length > 0 ? result[0] : null;
+    } catch (error: any) {
+      throw new HttpError(
+        500,
+        "Không thể tìm dữ liệu",
+        "DIRECTUS_FIND_ONE_ERROR",
         error
       );
     }

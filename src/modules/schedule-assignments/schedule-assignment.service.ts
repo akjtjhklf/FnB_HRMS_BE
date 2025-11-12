@@ -35,6 +35,15 @@ export class ScheduleAssignmentsService extends BaseService<ScheduleAssignment> 
       throw new HttpError(404, "Không tìm thấy lịch phân công", "SCHEDULE_ASSIGNMENT_NOT_FOUND");
     await this.repo.delete(id);
   }
+
+  /**
+   * Lấy danh sách assignments theo scheduleId
+   */
+  async listBySchedule(scheduleId: string) {
+    return await this.repo.findAll({
+      filter: { schedule_id: { _eq: scheduleId } },
+    });
+  }
 }
 
 export default ScheduleAssignmentsService;
