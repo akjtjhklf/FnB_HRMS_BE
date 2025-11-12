@@ -109,3 +109,30 @@
       next(err);
     }
   };
+
+  /**
+   * Lấy thông tin user hiện tại (authenticated user)
+   */
+  export const getMe = async (
+    req: Request,
+    res: Response<ApiResponse<unknown>>,
+    next: NextFunction
+  ) => {
+    try {
+      // User đã được attach vào req bởi requireAuth middleware
+      const currentUser = (req as any).user;
+      
+      if (!currentUser) {
+        throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
+      }
+
+      return sendSuccess(
+        res,
+        toUserResponseDto(currentUser),
+        200,
+        "Lấy thông tin người dùng hiện tại thành công"
+      );
+    } catch (err) {
+      next(err);
+    }
+  };
