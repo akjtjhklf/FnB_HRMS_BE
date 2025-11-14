@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { HttpError } from "../../core/base";
 import { ApiResponse } from "../../core/response";
 import { directus } from "../../utils/directusClient";
+import { sendError } from "../../core/response";
 
 export const login = async (
   req: Request,
@@ -22,7 +23,9 @@ export const login = async (
     });
   } catch (e) {
     console.error("❌ Login failed:", e);
-    throw new HttpError(401, "Invalid credentials");
+
+    // Use sendError helper to ensure proper ApiResponse type
+    return sendError(res, "Invalid credentials", 401);
   }
 };
 
