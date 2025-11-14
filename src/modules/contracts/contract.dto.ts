@@ -8,10 +8,10 @@ export const createContractSchema = z.object({
     .enum(["full_time", "part_time", "casual", "probation"])
     .nullable()
     .optional(),
-  start_date: z.date().nullable().optional(),
-  end_date: z.date().nullable().optional(),
+  start_date: z.string().nullable().optional(),
+  end_date: z.string().nullable().optional(),
   base_salary: z.number().nullable().optional(),
-  probation_end_date: z.date().nullable().optional(),
+  probation_end_date: z.string().nullable().optional(),
   signed_doc_url: z.url().nullable().optional(),
   is_active: z.boolean().default(true).optional(),
   notes: z.string().nullable().optional(),
