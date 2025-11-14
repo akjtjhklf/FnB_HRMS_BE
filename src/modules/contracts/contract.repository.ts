@@ -5,6 +5,12 @@ import { Contract, CONTRACTS_COLLECTION } from "./contract.model";
  * Repository hợp đồng lao động — kết nối tới Directus `contracts`
  */
 export class ContractRepository extends DirectusRepository<Contract> {
+  protected searchFields = [
+    "contract_number",
+    "contract_type",
+    "job_title"
+  ];
+
   constructor() {
     super(CONTRACTS_COLLECTION);
   }

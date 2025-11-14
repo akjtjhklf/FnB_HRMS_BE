@@ -2,11 +2,16 @@ import { BaseService, HttpError } from "../../core/base";
 import { Device } from "./device.model";
 import DeviceRepository from "./device.repository";
 import { randomUUID } from "crypto";
+import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 
 export class DeviceService extends BaseService<Device> {
   declare repo: DeviceRepository;
   constructor(repo = new DeviceRepository()) {
     super(repo);
+  }
+
+  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<Device>> {
+    return await this.repo.findAllPaginated(query);
   }
 
   async list(query?: Record<string, unknown>) {

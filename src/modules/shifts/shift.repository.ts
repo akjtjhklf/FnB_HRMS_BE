@@ -5,8 +5,14 @@ import { Shift, SHIFTS_COLLECTION } from "./shift.model";
  * Repository cho bảng shifts — quản lý dữ liệu ca làm việc
  */
 export class ShiftRepository extends DirectusRepository<Shift> {
-  constructor() {
-    super(SHIFTS_COLLECTION);
+  protected searchFields = [
+    "shift_name",
+    "location",
+    "notes"
+  ];
+
+  constructor(client?: any) {
+    super(SHIFTS_COLLECTION, client);
   }
 
   async findByScheduleId(scheduleId: string): Promise<Shift[]> {

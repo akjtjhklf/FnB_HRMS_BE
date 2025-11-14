@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { validateBody } from '../../middlewares/validate.middleware';
 import { login, logout, refresh } from './auth.controller';
-import { loginSchema } from './auth.dto';
+import { loginSchema, refreshTokenSchema } from './auth.dto';
 
 const router = Router();
 router.post('/login', validateBody(loginSchema), login);
 router.post('/logout', logout);
-router.post('/refresh', refresh);
+router.post('/refresh-token', validateBody(refreshTokenSchema), refresh);
 export default router;
 

@@ -2,6 +2,13 @@ import { DirectusRepository } from "../../core/directus.repository";
 import { Device, DEVICES_COLLECTION } from "./device.model";
 
 export class DeviceRepository extends DirectusRepository<Device> {
+  protected searchFields = [
+    "device_key",
+    "name",
+    "device_type",
+    "location"
+  ];
+
   constructor() {
     super(DEVICES_COLLECTION);
   }

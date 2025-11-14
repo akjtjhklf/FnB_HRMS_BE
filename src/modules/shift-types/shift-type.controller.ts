@@ -10,15 +10,20 @@ const service = new ShiftTypeService();
  * Lấy danh sách ca làm việc
  */
 export const listShiftTypes = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const result = await service.listPaginated(req.query);
+    // Cast result to PaginatedResponse<ShiftType>
+    const paginated = result as import("../../core/directus.repository").PaginatedResponse<import("./shift-type.model").ShiftType>;
     return sendSuccess(
       res,
-      data.map(toShiftTypeResponseDto),
+      {
+        items: paginated.data.map(toShiftTypeResponseDto),
+        meta: paginated.meta,
+      },
       200,
       "Lấy danh sách ca làm việc thành công"
     );
@@ -59,9 +64,11 @@ export const createShiftType = async (
   next: NextFunction
 ) => {
   try {
+    console.log("📝 Creating shift type with data:", req.body);
     const data = await service.create(req.body);
     return sendSuccess(res, toShiftTypeResponseDto(data), 201, "Tạo ca làm việc thành công");
   } catch (err) {
+    console.error("❌ Error creating shift type:", err);
     next(err);
   }
 };

@@ -2,8 +2,8 @@ import { DirectusRepository } from "../../core/directus.repository";
 import { ShiftType, SHIFT_TYPES_COLLECTION } from "./shift-type.model";
 
 export class ShiftTypeRepository extends DirectusRepository<ShiftType> {
-  constructor() {
-    super(SHIFT_TYPES_COLLECTION);
+  constructor(client?: any) {
+    super(SHIFT_TYPES_COLLECTION, client);
   }
 
   async findByName(name: string): Promise<ShiftType | null> {
