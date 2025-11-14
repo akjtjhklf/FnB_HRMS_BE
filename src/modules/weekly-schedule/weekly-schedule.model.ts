@@ -10,4 +10,4 @@ export interface WeeklySchedule {
   updated_at?: string | null;
 }
 
-export const WEEKLY_SCHEDULE_COLLECTION = "weekly_schedules";
+export const WEEKLY_SCHEDULE_COLLECTION = "weekly_schedule";

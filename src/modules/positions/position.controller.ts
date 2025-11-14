@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import PositionService from "./position.service";
 import { toPositionResponseDto } from "./position.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new PositionService();
 
@@ -10,15 +11,20 @@ const service = new PositionService();
  * Lấy danh sách vị trí
  */
 export const listPositions = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
+    
     return sendSuccess(
       res,
-      data.map(toPositionResponseDto),
+      {
+        items: result.data.map(toPositionResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách vị trí thành công"
     );

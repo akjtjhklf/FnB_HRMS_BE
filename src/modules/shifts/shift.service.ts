@@ -1,10 +1,15 @@
 import { BaseService, HttpError } from "../../core/base";
 import { Shift } from "./shift.model";
 import ShiftRepository from "./shift.repository";
+import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 
 export class ShiftService extends BaseService<Shift> {
   constructor(repo = new ShiftRepository()) {
     super(repo);
+  }
+
+  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<Shift>> {
+    return await (this.repo as ShiftRepository).findAllPaginated(query);
   }
 
   async list(query?: Record<string, unknown>) {

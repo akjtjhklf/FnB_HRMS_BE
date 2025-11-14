@@ -2,11 +2,14 @@ import { Router } from "express";
 import { validateBody } from "../../middlewares/validate.middleware";
 import {
   createWeeklySchedule,
+  createWeeklyScheduleWithShiftsHandler,
   deleteWeeklySchedule,
   getWeeklySchedule,
   listWeeklySchedules,
   updateWeeklySchedule,
+  debugDirectusAccess,
 } from "./weekly-schedule.controller";
+import { requireAuth } from "../../middlewares/auth.middleware";
 import {
   createWeeklyScheduleSchema,
   updateWeeklyScheduleSchema,
@@ -31,7 +34,20 @@ const router = Router();
  *       200:
  *         description: Danh sách lịch tuần
  */
-router.get("/", listWeeklySchedules);
+router.get("/", requireAuth(), listWeeklySchedules);
+
+
+/**
+ * @swagger
+ * /weekly-schedules/with-shifts:
+ *   post:
+ *     summary: Tạo lịch tuần mới kèm ca làm việc draft tự động
+ *     tags: [WeeklySchedules]
+ *     responses:
+ *       201:
+ *         description: Tạo thành công
+ */
+router.post("/with-shifts", requireAuth(), createWeeklyScheduleWithShiftsHandler);
 
 /**
  * @swagger
@@ -52,7 +68,7 @@ router.get("/", listWeeklySchedules);
  *       404:
  *         description: Không tìm thấy
  */
-router.get("/:id", getWeeklySchedule);
+router.get("/:id", requireAuth(), getWeeklySchedule);
 
 /**
  * @swagger
@@ -127,5 +143,7 @@ router.put(
  *         description: Không tìm thấy
  */
 router.delete("/:id", deleteWeeklySchedule);
+
+router.get("/debug-directus", requireAuth(), debugDirectusAccess);
 
 export default router;

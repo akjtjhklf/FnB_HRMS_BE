@@ -5,6 +5,8 @@ import { Position, POSITIONS_COLLECTION } from "./position.model";
  * Repository vị trí công việc — kết nối tới Directus `positions` collection
  */
 export class PositionRepository extends DirectusRepository<Position> {
+  protected searchFields = ["name", "description", "code"];
+
   constructor() {
     super(POSITIONS_COLLECTION);
   }

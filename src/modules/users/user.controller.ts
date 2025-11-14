@@ -3,6 +3,7 @@
   import { HttpError } from "../../core/base";
   import UserService from "./user.service";
   import { toUserResponseDto } from "./user.dto";
+  import { parsePaginationQuery } from "../../utils/query.utils";
 
   const service = new UserService();
 
@@ -10,15 +11,20 @@
    * Lấy danh sách người dùng
    */
   export const listUsers = async (
-    _req: Request,
+    req: Request,
     res: Response<ApiResponse<unknown>>,
     next: NextFunction
   ) => {
     try {
-      const data = await service.list();
+      const query = parsePaginationQuery(req);
+      const result = await service.listPaginated(query);
+      
       return sendSuccess(
         res,
-        data.map(toUserResponseDto),
+        {
+          items: result.data.map(toUserResponseDto),
+          ...result.meta,
+        },
         200,
         "Lấy danh sách người dùng thành công"
       );

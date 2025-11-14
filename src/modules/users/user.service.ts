@@ -1,10 +1,15 @@
 import { BaseService, HttpError } from "../../core/base";
 import { User } from "./user.model";
 import UserRepository from "./user.repository";
+import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 
 export class UserService extends BaseService<User> {
   constructor(repo = new UserRepository()) {
     super(repo);
+  }
+
+  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<User>> {
+    return await (this.repo as UserRepository).findAllPaginated(query);
   }
 
   /**

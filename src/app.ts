@@ -44,6 +44,7 @@ import rfidCardsRouter from "./modules/rfid-cards/rfid-card.routes";
 import filesRouter from "./modules/files/file.routes";
 import { setupSwagger } from "./config/swagger.config";
 import { apiKeyAuth } from "./middlewares/auth.middleware";
+import analysisRoutes from "./modules/analysis/analysis.routes";
 
 const app = express();
 // bắt buộc API key cho tất cả
@@ -107,6 +108,7 @@ app.use("/api/rfid-cards", rfidCardsRouter);
 
 // 🗂️ File Upload (Cloudinary + Directus)
 app.use("/api/files", filesRouter);
+app.use("/analysis", analysisRoutes);
 
 setupSwagger(app);
 app.use(apiKeyAuth(false)); 

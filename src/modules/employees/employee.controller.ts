@@ -3,22 +3,28 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import EmployeeService from "./employee.service";
 import { toEmployeeResponseDto } from "./employee.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new EmployeeService();
 
 /**
- * Lấy danh sách nhân viên
+ * Lấy danh sách nhân viên với pagination, filter, sort, search
  */
 export const listEmployees = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
+    
     return sendSuccess(
       res,
-      data.map(toEmployeeResponseDto),
+      {
+        items: result.data.map(toEmployeeResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách nhân viên thành công"
     );

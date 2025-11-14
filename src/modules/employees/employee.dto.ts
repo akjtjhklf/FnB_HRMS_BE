@@ -32,16 +32,10 @@ export const createEmployeeSchema = z.object({
 
 export const updateEmployeeSchema = createEmployeeSchema.partial();
 
-export const employeeResponseSchema = z.object({
-  id: z.string(),
-  employee_code: z.string(),
-  full_name: z.string().nullable(),
-  status: z.enum(["active", "on_leave", "suspended", "terminated"]),
-  email: z.string().nullable(),
-  phone: z.string().nullable(),
-  hire_date: z.string().nullable(),
-  created_at: z.string().nullable(),
-  updated_at: z.string().nullable(),
+export const employeeResponseSchema = createEmployeeSchema.extend({
+  id: z.uuid(),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
 });
 
 export type CreateEmployeeDto = z.infer<typeof createEmployeeSchema>;
@@ -53,12 +47,30 @@ export const toEmployeeResponseDto = (
   entity: Employee
 ): EmployeeResponseDto => ({
   id: entity.id,
+  user_id: entity.user_id ?? null,
   employee_code: entity.employee_code,
+  first_name: entity.first_name ?? null,
+  last_name: entity.last_name ?? null,
   full_name: entity.full_name ?? null,
-  status: entity.status ?? "active",
-  email: entity.email ?? null,
+  dob: entity.dob ?? null,
+  gender: entity.gender ?? null,
+  personal_id: entity.personal_id ?? null,
   phone: entity.phone ?? null,
+  email: entity.email ?? null,
+  address: entity.address ?? null,
   hire_date: entity.hire_date ?? null,
+  termination_date: entity.termination_date ?? null,
+  status: entity.status ?? "active",
+  scheme_id: entity.scheme_id ?? null,
+  default_work_hours_per_week: entity.default_work_hours_per_week ?? null,
+  max_hours_per_week: entity.max_hours_per_week ?? null,
+  max_consecutive_days: entity.max_consecutive_days ?? null,
+  min_rest_hours_between_shifts: entity.min_rest_hours_between_shifts ?? null,
+  photo_url: entity.photo_url ?? null,
+  emergency_contact_name: entity.emergency_contact_name ?? null,
+  emergency_contact_phone: entity.emergency_contact_phone ?? null,
+  notes: entity.notes ?? null,
+  metadata: entity.metadata ?? null,
   created_at: entity.created_at ?? null,
   updated_at: entity.updated_at ?? null,
 });

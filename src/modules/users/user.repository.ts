@@ -5,6 +5,13 @@ import { User, USERS_COLLECTION } from "./user.model";
  * Repository người dùng — kết nối tới Directus `users` collection
  */
 export class UserRepository extends DirectusRepository<User> {
+  protected searchFields = [
+    "email",
+    "first_name",
+    "last_name",
+    "title"
+  ];
+
   constructor() {
     super(USERS_COLLECTION);
   }
