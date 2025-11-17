@@ -2,6 +2,16 @@ import { DirectusRepository } from "../../core/directus.repository";
 import { Employee, EMPLOYEES_COLLECTION } from "./employee.model";
 
 export class EmployeeRepository extends DirectusRepository<Employee> {
+  protected searchFields = [
+    "employee_code",
+    "first_name",
+    "last_name",
+    "full_name",
+    "email",
+    "phone",
+    "personal_id"
+  ];
+
   constructor() {
     super(EMPLOYEES_COLLECTION);
   }

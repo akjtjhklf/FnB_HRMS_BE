@@ -6,6 +6,36 @@
 [![Express](https://img.shields.io/badge/Express-4.18+-green.svg)](https://expressjs.com/)
 [![Directus](https://img.shields.io/badge/Directus-10.0+-purple.svg)](https://directus.io/)
 
+## 🎉 Latest Updates (November 2024)
+
+### ✨ New Features Added:
+- ✅ **Advanced Query System** - Full pagination, filtering, sorting, and search support
+- ✅ **Improved Authentication** - Stable Directus integration with auto-refresh tokens
+- ✅ **Standardized API Response** - Consistent pagination format across all endpoints
+
+### 📚 Documentation:
+- 📖 **[UPDATE_SUMMARY.md](UPDATE_SUMMARY.md)** - Complete overview of changes
+- 📖 **[MIGRATION_GUIDE.md](MIGRATION_GUIDE.md)** - How to update remaining modules
+- 📖 **[API_EXAMPLES.md](API_EXAMPLES.md)** - API usage examples with cURL, Fetch, etc.
+
+### 🔍 Query Features Available:
+```bash
+# Pagination
+GET /api/employees?page=1&limit=20
+
+# Search
+GET /api/employees?search=John
+
+# Filter
+GET /api/employees?filter={"status":"active"}
+
+# Sort
+GET /api/employees?sort=-created_at
+
+# Combine all
+GET /api/employees?page=1&limit=20&search=John&filter={"status":"active"}&sort=-hire_date
+```
+
 ## 🎯 Tính Năng Chính
 
 ### ✨ Core Features

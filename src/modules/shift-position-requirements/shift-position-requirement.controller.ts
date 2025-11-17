@@ -10,15 +10,20 @@ const service = new ShiftPositionRequirementService();
  * Lấy danh sách yêu cầu vị trí ca làm
  */
 export const listShiftPositionRequirements = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const result = await service.listPaginated(req.query);
+    // Cast result to PaginatedResponse<ShiftPositionRequirement>
+    const paginated = result as import("../../core/directus.repository").PaginatedResponse<import("./shift-position-requirement.model").ShiftPositionRequirement>;
     return sendSuccess(
       res,
-      data.map(toShiftPositionRequirementResponseDto),
+      {
+        data: paginated.data.map(toShiftPositionRequirementResponseDto),
+        meta: paginated.meta,
+      },
       200,
       "Lấy danh sách yêu cầu vị trí ca làm thành công"
     );

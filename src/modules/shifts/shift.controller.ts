@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import ShiftService from "./shift.service";
 import { toShiftResponseDto } from "./shift.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new ShiftService();
 
@@ -10,15 +11,20 @@ const service = new ShiftService();
  * Lấy danh sách ca làm việc
  */
 export const listShifts = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
+    
     return sendSuccess(
       res,
-      data.map(toShiftResponseDto),
+      {
+        items: result.data.map(toShiftResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách ca làm việc thành công"
     );

@@ -1,10 +1,15 @@
 import { BaseService, HttpError } from "../../core/base";
 import { Contract } from "./contract.model";
 import ContractRepository from "./contract.repository";
+import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 
 export class ContractService extends BaseService<Contract> {
   constructor(repo = new ContractRepository()) {
     super(repo);
+  }
+
+  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<Contract>> {
+    return await (this.repo as ContractRepository).findAllPaginated(query);
   }
 
   /**

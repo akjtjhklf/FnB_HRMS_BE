@@ -40,16 +40,52 @@ export const logout = async (
 };
 
 export const refresh = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>
 ) => {
   try {
-    const response = await directus.refresh();
-    const token = response.access_token;
-    const refresh_token = response.refresh_token;
+    console.log("🔄 Refresh request received");
+    console.log("📦 Request body:", req.body);
+    
+    const { refresh_token } = req.body;
 
-    return res.json({ success: true, data: { token, refresh_token } });
-  } catch {
-    throw new HttpError(401, "Unable to refresh token");
+    if (!refresh_token) {
+      console.error("❌ No refresh token provided");
+      return sendError(res, "Refresh token is required", 400);
+    }
+
+    console.log("🔄 Attempting to refresh token with:", refresh_token.substring(0, 20) + "...");
+
+    // Make a direct HTTP request to Directus refresh endpoint
+    const directusUrl = process.env.DIRECTUS_URL;
+    const refreshResponse = await fetch(`${directusUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        refresh_token: refresh_token,
+        mode: 'json'
+      })
+    });
+
+    if (!refreshResponse.ok) {
+      const errorData = await refreshResponse.json();
+      console.error("❌ Directus refresh failed:", errorData);
+      return sendError(res, "Unable to refresh token. Please log in again.", 401);
+    }
+
+    const data = await refreshResponse.json();
+    const token = data.data.access_token;
+    const new_refresh_token = data.data.refresh_token;
+
+    console.log("✅ Token refreshed successfully");
+
+    return res.json({ success: true, data: { token, refresh_token: new_refresh_token } });
+  } catch (error: any) {
+    console.error("❌ Token refresh failed:");
+    console.error("Error message:", error?.message);
+    console.error("Error details:", error);
+    return sendError(res, "Unable to refresh token. Please log in again.", 401);
   }
 };
