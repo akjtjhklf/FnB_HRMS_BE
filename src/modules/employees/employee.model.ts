@@ -1,3 +1,5 @@
+import { User } from "../users/user.model";
+
 export interface Employee {
   id: string;
   user_id?: string | null;
@@ -27,6 +29,9 @@ export interface Employee {
   created_at?: string | null;
   updated_at?: string | null;
   deleted_at?: string | null;
+
+  // 🔹 Quan hệ
+  user?: User | null;
 }
 
 export const EMPLOYEES_COLLECTION = "employees";

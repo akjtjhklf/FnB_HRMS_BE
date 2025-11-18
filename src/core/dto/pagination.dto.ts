@@ -2,8 +2,10 @@
  * Base pagination request DTO
  */
 export interface PaginationQueryDto {
-  page?: number;
-  limit?: number;
+  // `req.query` values are strings at runtime; accept either to allow typing
+  page?: number | string;
+  limit?: number | string;
+  offset?: number | string;
   sort?: string | string[]; // e.g., "name" or "-created_at" or ["name", "-date"]
   filter?: Record<string, any>;
   search?: string; // Global search
@@ -70,5 +72,41 @@ export function mergeFilters(
   
   return {
     _and: [filter, searchFilter]
+  };
+}
+
+/**
+ * Parse pagination-related params that usually come from `req.query`.
+ * Returns normalized numeric `page`, `limit`, `offset`, parsed `sort` array
+ * and the remaining filters (everything else in the query object).
+ */
+export function parsePaginationParams(query: Record<string, any> | undefined) {
+  const q = query ?? {};
+  const { page, limit, offset, sort, filter, search, fields, ...other } = q;
+
+  const pageNum = Number(page ?? q.page ?? 1) || 1;
+  const limitNum = Number(limit ?? q.limit ?? 10) || 10;
+  const offsetNum = Number(offset ?? q.offset ?? (pageNum - 1) * limitNum) || 0;
+
+  const sortArr = parseSortParam(sort as any);
+
+  // merge filter param (if provided as object) with other query keys
+  const filters: Record<string, any> = {};
+  if (filter && typeof filter === 'object') Object.assign(filters, filter);
+  if (search) filters._search = search;
+  if (fields) filters._fields = fields;
+
+  // remaining keys from query (excluding reserved ones) are considered custom filters
+  Object.keys(other).forEach(k => {
+    const v = other[k];
+    if (v !== undefined) filters[k] = v;
+  });
+
+  return {
+    page: pageNum,
+    limit: limitNum,
+    offset: offsetNum,
+    sort: sortArr,
+    filters: Object.keys(filters).length ? filters : undefined,
   };
 }

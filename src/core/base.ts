@@ -1,4 +1,5 @@
 // src/core/base.ts
+import { parsePaginationParams } from './dto/pagination.dto';
 export type Identifier = number | string;
 
 export interface PaginatedResult<T> {
@@ -91,23 +92,25 @@ export abstract class BaseService<T extends { id?: Identifier }> {
   }
 
   // Optional pagination (Directus supports limit + offset)
-  async paginate(
-    page = 1,
-    limit = 10,
-    query?: Record<string, unknown>
-  ): Promise<PaginatedResult<T>> {
+  async paginate(query?: Record<string, unknown>): Promise<PaginatedResult<T>> {
     try {
+      // Normalize pagination params (page/limit/offset/sort/filters)
+      const { page, limit, offset, sort, filters } =
+        parsePaginationParams(query as Record<string, any>);
+
       const items = await this.repo.findAll({
         limit,
-        offset: (page - 1) * limit,
-        ...query,
+        offset,
+        sort,
+        filter: filters,
       });
+
       return {
         items,
-        total: items.length, // có thể thay bằng totalCount nếu Directus trả về
+        total: items.length, // may replace with total count if repo returns it
       };
     } catch (error) {
-      this.handleError(error, "PAGINATE_FAILED");
+      this.handleError(error, 'PAGINATE_FAILED');
     }
   }
 

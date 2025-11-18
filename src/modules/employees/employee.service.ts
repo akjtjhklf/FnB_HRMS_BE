@@ -1,30 +1,42 @@
 import { BaseService, HttpError } from "../../core/base";
 import { Employee } from "./employee.model";
 import EmployeeRepository from "./employee.repository";
-import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
+import {
+  PaginationQueryDto,
+  PaginatedResponse,
+} from "../../core/dto/pagination.dto";
 
 export class EmployeeService extends BaseService<Employee> {
   constructor(repo = new EmployeeRepository()) {
     super(repo);
   }
 
-  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<Employee>> {
-    return await (this.repo as EmployeeRepository).findAllPaginated(query);
+  /** Pagination employee kèm user + role */
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<Employee>> {
+    return await (this.repo as EmployeeRepository).findAllPaginatedWithUserRole(
+      query
+    );
   }
 
+  /** Lấy danh sách employee kèm user + role */
   async list(query?: Record<string, unknown>) {
-    return await this.repo.findAll(query);
+    return await (this.repo as EmployeeRepository).findAllWithUserRole(query);
   }
 
+  /** Lấy 1 employee theo ID kèm user + role */
   async get(id: string | number) {
-    const employee = await this.repo.findById(id);
-    if (!employee)
+    const employee = await (
+      this.repo as EmployeeRepository
+    ).findAllWithUserRole({ id: { _eq: id } });
+    if (!employee?.[0])
       throw new HttpError(
         404,
         "Không tìm thấy nhân viên",
         "EMPLOYEE_NOT_FOUND"
       );
-    return employee;
+    return employee[0];
   }
 
   async create(data: Partial<Employee>) {

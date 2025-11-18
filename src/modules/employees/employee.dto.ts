@@ -43,9 +43,11 @@ export type UpdateEmployeeDto = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeResponseDto = z.infer<typeof employeeResponseSchema>;
 
 // Mapper
+import { UserResponseDto, toUserResponseDto } from "../users/user.dto"; // giả sử bạn có DTO user/role
+
 export const toEmployeeResponseDto = (
   entity: Employee
-): EmployeeResponseDto => ({
+): EmployeeResponseDto & { user?: UserResponseDto } => ({
   id: entity.id,
   user_id: entity.user_id ?? null,
   employee_code: entity.employee_code,
@@ -73,4 +75,5 @@ export const toEmployeeResponseDto = (
   metadata: entity.metadata ?? null,
   created_at: entity.created_at ?? null,
   updated_at: entity.updated_at ?? null,
+  user: entity.user ? toUserResponseDto(entity.user) : undefined,
 });
