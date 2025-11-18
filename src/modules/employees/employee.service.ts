@@ -74,7 +74,19 @@ export class EmployeeService extends BaseService<Employee> {
         "EMPLOYEE_NOT_FOUND"
       );
 
-    await this.repo.delete(id);
+    try {
+      await this.repo.delete(id);
+    } catch (error: any) {
+      // Check if it's a foreign key constraint error
+      if (error.message && error.message.includes("foreign key constraint")) {
+        throw new HttpError(
+          409,
+          "Không thể xóa nhân viên này vì đang có dữ liệu liên quan (hợp đồng, chấm công, lương, v.v.). Vui lòng thay đổi trạng thái nhân viên thành 'Đã nghỉ việc' thay vì xóa.",
+          "EMPLOYEE_HAS_DEPENDENCIES"
+        );
+      }
+      throw error;
+    }
   }
 }
 

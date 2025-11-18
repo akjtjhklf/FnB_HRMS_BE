@@ -64,10 +64,18 @@ export const toEmployeeResponseDto = (
   termination_date: entity.termination_date ?? null,
   status: entity.status ?? "active",
   scheme_id: entity.scheme_id ?? null,
-  default_work_hours_per_week: entity.default_work_hours_per_week ?? null,
-  max_hours_per_week: entity.max_hours_per_week ?? null,
-  max_consecutive_days: entity.max_consecutive_days ?? null,
-  min_rest_hours_between_shifts: entity.min_rest_hours_between_shifts ?? null,
+  default_work_hours_per_week: entity.default_work_hours_per_week 
+    ? Number(entity.default_work_hours_per_week) 
+    : null,
+  max_hours_per_week: entity.max_hours_per_week 
+    ? Number(entity.max_hours_per_week) 
+    : null,
+  max_consecutive_days: entity.max_consecutive_days 
+    ? Number(entity.max_consecutive_days) 
+    : null,
+  min_rest_hours_between_shifts: entity.min_rest_hours_between_shifts 
+    ? Number(entity.min_rest_hours_between_shifts) 
+    : null,
   photo_url: entity.photo_url ?? null,
   emergency_contact_name: entity.emergency_contact_name ?? null,
   emergency_contact_phone: entity.emergency_contact_phone ?? null,
