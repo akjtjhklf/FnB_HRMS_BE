@@ -19,6 +19,7 @@ import deductionsRouter from "./modules/deductions/deduction.routes";
 import salarySchemesRouter from "./modules/salary-schemes/salary-scheme.routes";
 import salaryRequestsRouter from "./modules/salary-requests/salary-request.routes";
 import monthlyEmployeeStatsRouter from "./modules/monthly-employee-stats/monthly-employee-stat.routes";
+import monthlyPayrollsRouter from "./modules/monthly-payrolls/monthly-payroll.routes";
 
 // ========== ATTENDANCE & SHIFT ==========
 import shiftsRouter from "./modules/shifts/shift.routes";
@@ -82,6 +83,7 @@ app.use("/api/deductions", deductionsRouter);
 app.use("/api/salary-schemes", salarySchemesRouter);
 app.use("/api/salary-requests", salaryRequestsRouter);
 app.use("/api/monthly-employee-stats", monthlyEmployeeStatsRouter);
+app.use("/api/monthly-payrolls", monthlyPayrollsRouter);
 
 // 🕒 Attendance & Shift
 app.use("/api/shifts", shiftsRouter);

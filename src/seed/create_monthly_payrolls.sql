@@ -1,0 +1,33 @@
+-- Create monthly_payrolls table
+CREATE TABLE IF NOT EXISTS monthly_payrolls (
+    id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    employee_id CHAR(36) NOT NULL,
+    month VARCHAR(7) NOT NULL, -- format: YYYY-MM
+    salary_scheme_id CHAR(36),
+    base_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+    allowances DECIMAL(12,2) NOT NULL DEFAULT 0,
+    bonuses DECIMAL(12,2) NOT NULL DEFAULT 0,
+    overtime_pay DECIMAL(12,2) NOT NULL DEFAULT 0,
+    deductions DECIMAL(12,2) NOT NULL DEFAULT 0,
+    penalties DECIMAL(12,2) NOT NULL DEFAULT 0,
+    gross_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+    net_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+    total_work_hours DECIMAL(6,2),
+    overtime_hours DECIMAL(6,2),
+    late_minutes INT,
+    absent_days INT,
+    notes TEXT,
+    status ENUM('draft','pending_approval','approved','paid') DEFAULT 'draft',
+    approved_by CHAR(36),
+    approved_at DATETIME,
+    paid_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+    FOREIGN KEY (salary_scheme_id) REFERENCES salary_schemes(id) ON DELETE SET NULL,
+    FOREIGN KEY (approved_by) REFERENCES directus_users(id) ON DELETE SET NULL,
+    UNIQUE KEY uq_emp_month_payroll (employee_id, month),
+    INDEX idx_month (month),
+    INDEX idx_status (status),
+    INDEX idx_employee_month (employee_id, month)
+);

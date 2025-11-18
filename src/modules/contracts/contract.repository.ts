@@ -19,7 +19,19 @@ export class ContractRepository extends DirectusRepository<Contract> {
   async findByEmployee(employeeId: string) {
     return await this.findAll({
       filter: { employee_id: { _eq: employeeId } },
+      fields: ["*", "employee_id.*"],
     });
+  }
+
+  /**
+   * Override findAllPaginated để luôn populate employee relation
+   */
+  async findAllPaginated(options: any): Promise<{ data: Contract[]; meta: any }> {
+    const enhancedOptions = {
+      ...options,
+      fields: options.fields || ["*", "employee_id.*"],
+    };
+    return super.findAllPaginated(enhancedOptions);
   }
 }
 

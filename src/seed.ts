@@ -18,6 +18,7 @@ async function run() {
     // ========== CLEAR OLD DATA ==========
     console.log('🗑️  Clearing old data (in reverse order to respect foreign keys)...');
     const collections = [
+      'monthly_payrolls',
       'monthly_employee_stats',
       'salary_requests',
       'deductions',
@@ -187,20 +188,54 @@ async function run() {
     const rfidCards = await directus.request(createItems('rfid_cards', rfidCardsData));
     console.log(`✅ Created ${rfidCards.length} RFID cards`);
 
-    // ========== 8. ATTENDANCE LOGS (15 records) ==========
+    // ========== 8. ATTENDANCE LOGS (Multiple days: 08-17 Nov) ==========
     console.log('📝 Seeding Attendance Logs...');
-    const today = new Date().toISOString().split('T')[0];
-    const attendanceLogsData = rfidCards.slice(0, 15).map((card, i) => ({
-      card_uid: card.card_uid,
-      rfid_card_id: card.id,
-      employee_id: card.employee_id,
-      device_id: devices[i % devices.length].id,
-      event_type: i % 2 === 0 ? 'clock_in' : 'clock_out',
-      event_time: `${today}T${String(8 + (i % 8)).padStart(2, '0')}:${String((i * 13) % 60).padStart(2, '0')}:00`,
-      processed: true,
-    }));
+    const attendanceLogsData: any[] = [];
+    
+    // Generate logs from Nov 8 to Nov 17 (10 days)
+    for (let dayOffset = 0; dayOffset < 10; dayOffset++) {
+      const date = new Date('2025-11-08');
+      date.setDate(date.getDate() + dayOffset);
+      const dateStr = date.toISOString().split('T')[0];
+      
+      // Each employee has check-in and check-out for each day
+      rfidCards.forEach((card, empIndex) => {
+        // Skip some random days (simulate absences - 15% absence rate)
+        if (Math.random() > 0.85) return;
+        
+        // Morning check-in (7:30 - 9:00 AM)
+        const checkInHour = 7 + Math.floor(Math.random() * 2);
+        const checkInMin = Math.floor(Math.random() * 60);
+        const checkInTime = `${dateStr}T${String(checkInHour).padStart(2, '0')}:${String(checkInMin).padStart(2, '0')}:00`;
+        
+        // Evening check-out (17:00 - 19:00) - some days no checkout (5%)
+        const hasCheckOut = Math.random() > 0.05;
+        const checkOutHour = 17 + Math.floor(Math.random() * 3);
+        const checkOutMin = Math.floor(Math.random() * 60);
+        const checkOutTime = hasCheckOut 
+          ? `${dateStr}T${String(checkOutHour).padStart(2, '0')}:${String(checkOutMin).padStart(2, '0')}:00`
+          : null;
+        
+        // Create a combined log with both check_in and check_out
+        attendanceLogsData.push({
+          card_uid: card.card_uid,
+          rfid_card_id: card.id,
+          employee_id: card.employee_id,
+          device_id: devices[empIndex % devices.length].id,
+          event_type: 'clock_in',
+          event_time: checkInTime,
+          date: dateStr,
+          check_in_time: checkInTime,
+          check_out_time: checkOutTime,
+          status: hasCheckOut ? 'present' : 'late',
+          notes: empIndex % 5 === 0 ? 'Regular shift' : null,
+          processed: true,
+        });
+      });
+    }
+    
     const attendanceLogs = await directus.request(createItems('attendance_logs', attendanceLogsData));
-    console.log(`✅ Created ${attendanceLogs.length} attendance logs`);
+    console.log(`✅ Created ${attendanceLogs.length} attendance logs (from Nov 8-17)`);
 
     // ========== 9. WEEKLY SCHEDULES (15 records) ==========
     console.log('📅 Seeding Weekly Schedules...');
@@ -300,6 +335,7 @@ async function run() {
     console.log('⏱️ Seeding Attendance Shifts...');
     const attendanceShiftsData = scheduleAssignments.slice(0, 15).map((assignment, i) => {
       const shiftData = shifts.find(s => s.id === assignment.shift_id);
+      const today = new Date().toISOString().split('T')[0];
       const clockIn = shiftData?.start_at || `${today}T08:00:00`;
       const clockOut = shiftData?.end_at || `${today}T16:00:00`;
       return {
@@ -422,6 +458,61 @@ async function run() {
     📊 Monthly Employee Stats:           ${monthlyStats.length}
     ───────────────────────────────────────────────────────────────
     TOTAL RECORDS:                       ${positions.length + schemes.length + employees.length + contracts.length + shiftTypes.length + devices.length + rfidCards.length + attendanceLogs.length + weeklySchedules.length + shifts.length + shiftPosReqs.length + scheduleAssignments.length + employeeAvailability.length + empAvailPos.length + attendanceShifts.length + attendanceAdjustments.length + scheduleChangeRequests.length + deductions.length + salaryRequests.length + monthlyStats.length}
+    ═══════════════════════════════════════════════════════════════
+    `);
+
+    // ========== MONTHLY PAYROLLS ==========
+    console.log('💵 Seeding Monthly Payrolls...');
+    const currentMonth = '2025-11';
+    const payrollsData = employees.map((emp: any, idx: number) => {
+      const scheme = schemes[idx];
+      const baseSalary = scheme.pay_type === 'monthly' ? scheme.rate : scheme.rate * 160; // 160 hours/month
+      const allowances = Math.floor(Math.random() * 1000000) + 500000; // 500K-1.5M
+      const bonuses = Math.random() > 0.5 ? Math.floor(Math.random() * 2000000) : 0; // 0-2M random bonus
+      const overtimePay = Math.floor(Math.random() * 500000); // 0-500K
+      const deductions = Math.floor(Math.random() * 300000); // 0-300K
+      const penalties = Math.random() > 0.7 ? Math.floor(Math.random() * 200000) : 0; // 30% chance of penalty
+      
+      const grossSalary = baseSalary + allowances + bonuses + overtimePay;
+      const netSalary = grossSalary - deductions - penalties;
+
+      return {
+        employee_id: emp.id,
+        month: currentMonth,
+        salary_scheme_id: scheme.id,
+        base_salary: baseSalary,
+        allowances,
+        bonuses,
+        overtime_pay: overtimePay,
+        deductions,
+        penalties,
+        gross_salary: grossSalary,
+        net_salary: netSalary,
+        total_work_hours: 160 + Math.floor(Math.random() * 20),
+        overtime_hours: Math.floor(Math.random() * 10),
+        late_minutes: Math.floor(Math.random() * 120),
+        absent_days: Math.floor(Math.random() * 3),
+        notes: idx % 3 === 0 ? 'Nhân viên xuất sắc tháng này' : null,
+        status: ['draft', 'pending_approval', 'approved', 'paid'][Math.floor(Math.random() * 4)],
+      };
+    });
+    const payrolls = await directus.request(createItems('monthly_payrolls', payrollsData));
+    console.log(`✅ Created ${payrolls.length} monthly payrolls for ${currentMonth}`);
+
+    console.log(`
+    ═══════════════════════════════════════════════════════════════
+    ✨ Seed Complete! Summary:
+    ═══════════════════════════════════════════════════════════════
+       📍 Positions: ${positions.length}
+       💰 Salary Schemes: ${schemes.length}
+       👤 Employees: ${employees.length}
+       🏢 Devices: ${devices.length}
+       💳 RFID Cards: ${rfidCards.length}
+       🕐 Shift Types: ${shiftTypes.length}
+       📅 Weekly Schedule: ${weeklySchedules.length}
+       🔄 Shifts: ${shifts.length}
+       ⏰ Attendance Logs: ${attendanceLogs.length}
+       💵 Monthly Payrolls: ${payrolls.length}
     ═══════════════════════════════════════════════════════════════
     `);
 
