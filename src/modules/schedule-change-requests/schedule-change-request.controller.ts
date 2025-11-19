@@ -3,19 +3,24 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import ScheduleChangeRequestService from "./schedule-change-request.service";
 import { toScheduleChangeRequestResponseDto } from "./schedule-change-request.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new ScheduleChangeRequestService();
 
 export const listScheduleChangeRequests = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toScheduleChangeRequestResponseDto),
+      {
+        items: data.data.map(toScheduleChangeRequestResponseDto),
+        ...data.meta,
+      },
       200,
       "Lấy danh sách yêu cầu thay đổi lịch thành công"
     );

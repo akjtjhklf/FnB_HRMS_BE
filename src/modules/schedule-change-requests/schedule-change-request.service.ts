@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { ScheduleChangeRequest } from "./schedule-change-request.model";
 import ScheduleChangeRequestRepository from "./schedule-change-request.repository";
 
@@ -9,6 +13,14 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
 
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<ScheduleChangeRequest>> {
+    return await (
+      this.repo as ScheduleChangeRequestRepository
+    ).findAllPaginated(query);
   }
 
   async get(id: string) {
