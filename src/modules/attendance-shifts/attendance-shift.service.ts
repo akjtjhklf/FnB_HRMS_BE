@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { AttendanceShift } from "./attendance-shift.model";
 import AttendanceShiftRepository from "./attendance-shift.repository";
 import crypto from "crypto";
@@ -13,6 +17,14 @@ export class AttendanceShiftService extends BaseService<AttendanceShift> {
    */
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<AttendanceShift>> {
+    return await (this.repo as AttendanceShiftRepository).findAllPaginated(
+      query
+    );
   }
 
   /**

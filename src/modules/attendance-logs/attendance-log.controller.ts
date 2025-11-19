@@ -3,19 +3,23 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import AttendanceLogService from "./attendance-log.service";
 import { toAttendanceLogResponseDto } from "./attendance-log.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new AttendanceLogService();
 
 export const listAttendanceLogs = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+
+    const result = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toAttendanceLogResponseDto),
+      { items: result.data.map(toAttendanceLogResponseDto), ...result.meta },
+
       200,
       "Lấy danh sách logs thành công"
     );
