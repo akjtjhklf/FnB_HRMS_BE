@@ -2,6 +2,7 @@ import { BaseService, HttpError } from "../../core/base";
 import { ShiftPositionRequirement } from "./shift-position-requirement.model";
 import ShiftPositionRequirementRepository from "./shift-position-requirement.repository";
 import { DirectusRepository, PaginatedResponse } from "../../core/directus.repository";
+import { PaginationQueryDto } from "../../core/dto/pagination.dto";
 
 export class ShiftPositionRequirementService extends BaseService<ShiftPositionRequirement> {
   constructor(repo = new ShiftPositionRequirementRepository()) {
@@ -13,17 +14,12 @@ export class ShiftPositionRequirementService extends BaseService<ShiftPositionRe
     return await this.repo.findAll(query as any);
   }
 
-  async listPaginated(query?: Record<string, unknown>): Promise<PaginatedResponse<ShiftPositionRequirement>> {
-    // Nếu có page hoặc limit thì trả về paginated
-    const paginationQuery = {
-      page: query?.page ? Number(query.page) : 1,
-      limit: query?.limit ? Number(query.limit) : 10,
-      filter: query?.filter as any,
-      sort: query?.sort as string,
-      search: query?.search as string,
-      fields: query?.fields as string[],
-    };
-    return await (this.repo as DirectusRepository<ShiftPositionRequirement>).findAllPaginated(paginationQuery);
+   async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<ShiftPositionRequirement>> {
+    return await (
+      this.repo as ShiftPositionRequirementRepository
+    ).findAllPaginated(query);
   }
 
   async get(id: string) {

@@ -5,28 +5,27 @@ import WeeklyScheduleService from "./weekly-schedule.service";
 import { toWeeklyScheduleResponseDto } from "./weekly-schedule.dto";
 import { readItems } from "@directus/sdk";
 import { z } from "zod";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new WeeklyScheduleService();
 
 const createWeeklyScheduleSchema = z.object({
-  start_date: z
-    .string()
-    .refine((date) => !isNaN(Date.parse(date)), {
-      message: "Invalid date format",
-    }),
+  start_date: z.string().refine((date) => !isNaN(Date.parse(date)), {
+    message: "Invalid date format",
+  }),
 });
 
 export const listWeeklySchedules = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const directusClient = (_req as any).directusClient;
-    const data = await service.list(undefined, directusClient);
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toWeeklyScheduleResponseDto),
+      { items: data.data.map(toWeeklyScheduleResponseDto), ...data.meta },
       200,
       "Lấy danh sách lịch làm việc tuần thành công"
     );
@@ -115,11 +114,14 @@ export const createWeeklyScheduleWithShiftsHandler = async (
     console.log("📥 Request body:", req.body); // Debug
     const parsedData = createWeeklyScheduleSchema.parse(req.body);
     const directusClient = (req as any).directusClient;
-    
+
     console.log("✅ Parsed data:", parsedData); // Debug
-    
-    const result = await service.createWeeklyScheduleWithShifts(parsedData, directusClient);
-    
+
+    const result = await service.createWeeklyScheduleWithShifts(
+      parsedData,
+      directusClient
+    );
+
     return sendSuccess(
       res,
       result,
@@ -148,16 +150,29 @@ export const debugDirectusAccess = async (
     const user = (req as any).user;
     const client = (req as any).directusClient;
     if (!client) {
-      return res.status(400).json({ success: false, error: { message: "No directus client on request" } });
+      return res.status(400).json({
+        success: false,
+        error: { message: "No directus client on request" },
+      });
     }
 
     try {
-      const itemsReq: any = (readItems as any)("weekly_schedules" as any, { limit: 1 });
+      const itemsReq: any = (readItems as any)("weekly_schedules" as any, {
+        limit: 1,
+      });
       const items = await client.request(itemsReq);
-      return sendSuccess(res, { role: user?.role, items }, 200, "Directus access ok");
+      return sendSuccess(
+        res,
+        { role: user?.role, items },
+        200,
+        "Directus access ok"
+      );
     } catch (error: any) {
       console.error("🔍 Debug Directus access error:", error);
-      return res.status(403).json({ success: false, error: error.errors ?? { message: error?.message ?? 'Unknown' } });
+      return res.status(403).json({
+        success: false,
+        error: error.errors ?? { message: error?.message ?? "Unknown" },
+      });
     }
   } catch (err) {
     next(err);

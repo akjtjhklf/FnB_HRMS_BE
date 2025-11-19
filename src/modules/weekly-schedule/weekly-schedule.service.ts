@@ -3,6 +3,10 @@ import { WeeklySchedule } from "./weekly-schedule.model";
 import WeeklyScheduleRepository from "./weekly-schedule.repository";
 import ShiftTypeRepository from "../shift-types/shift-type.repository";
 import ShiftRepository from "../shifts/shift.repository";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 
 export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
   constructor(repo = new WeeklyScheduleRepository()) {
@@ -14,6 +18,13 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
     return await repo.findAll(query as any);
   }
 
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<WeeklySchedule>> {
+    return await (this.repo as WeeklyScheduleRepository).findAllPaginated(
+      query
+    );
+  }
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item)

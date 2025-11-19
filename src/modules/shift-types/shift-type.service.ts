@@ -1,7 +1,11 @@
 import { BaseService, HttpError } from "../../core/base";
 import { ShiftType } from "./shift-type.model";
 import ShiftTypeRepository from "./shift-type.repository";
-import { DirectusRepository, PaginatedResponse } from "../../core/directus.repository";
+import {
+  DirectusRepository,
+  PaginatedResponse,
+} from "../../core/directus.repository";
+import { PaginationQueryDto } from "../../core/dto/pagination.dto";
 
 export class ShiftTypeService extends BaseService<ShiftType> {
   constructor(repo = new ShiftTypeRepository()) {
@@ -13,17 +17,10 @@ export class ShiftTypeService extends BaseService<ShiftType> {
     return await this.repo.findAll(query as any);
   }
 
-  async listPaginated(query?: Record<string, unknown>): Promise<PaginatedResponse<ShiftType>> {
-    // Nếu có page hoặc limit thì trả về paginated
-    const paginationQuery = {
-      page: query?.page ? Number(query.page) : 1,
-      limit: query?.limit ? Number(query.limit) : 10,
-      filter: query?.filter as any,
-      sort: query?.sort as string,
-      search: query?.search as string,
-      fields: query?.fields as string[],
-    };
-    return await (this.repo as DirectusRepository<ShiftType>).findAllPaginated(paginationQuery);
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<ShiftType>> {
+    return await (this.repo as ShiftTypeRepository).findAllPaginated(query);
   }
 
   async get(id: string) {
