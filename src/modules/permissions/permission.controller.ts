@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import PermissionService from "./permission.service";
 import { toPermissionResponseDto } from "./permission.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new PermissionService();
 
@@ -10,15 +11,16 @@ const service = new PermissionService();
  * Lấy danh sách quyền
  */
 export const listPermissions = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toPermissionResponseDto),
+      { items: data.data.map(toPermissionResponseDto), ...data.meta },
       200,
       "Lấy danh sách quyền thành công"
     );
