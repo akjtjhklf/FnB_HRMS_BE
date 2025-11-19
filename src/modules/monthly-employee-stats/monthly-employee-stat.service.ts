@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { MonthlyEmployeeStat } from "./monthly-employee-stat.model";
 import MonthlyEmployeeStatRepository from "./monthly-employee-stat.repository";
 
@@ -11,7 +15,13 @@ export class MonthlyEmployeeStatService extends BaseService<MonthlyEmployeeStat>
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
   }
-
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<MonthlyEmployeeStat>> {
+    return await (this.repo as MonthlyEmployeeStatRepository).findAllPaginated(
+      query
+    );
+  }
   async get(id: string) {
     const stat = await this.repo.findById(id);
     if (!stat)
