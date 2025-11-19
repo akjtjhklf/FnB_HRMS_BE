@@ -2,6 +2,10 @@ import { BaseService, HttpError } from "../../core/base";
 import { FileEntity } from "./file.model";
 import FileRepository from "./file.repository";
 import cloudinary from "../../config/cloudinary.config";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 
 export class FileService extends BaseService<FileEntity> {
   constructor(repo = new FileRepository()) {
@@ -10,6 +14,12 @@ export class FileService extends BaseService<FileEntity> {
 
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<FileEntity>> {
+    return await (this.repo as FileRepository).findAllPaginated(query);
   }
 
   async get(id: string) {
