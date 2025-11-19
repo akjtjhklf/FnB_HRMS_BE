@@ -140,6 +140,69 @@ export const createWeeklyScheduleWithShiftsHandler = async (
   }
 };
 
+/**
+ * ============================================
+ * 📢 CÔNG BỐ LỊCH TUẦN - PUBLISH SCHEDULE
+ * ============================================
+ * PUT /api/weekly-schedules/:id/publish
+ * 
+ * Tính năng:
+ * - Thay đổi status từ "draft" → "published"
+ * - Lưu thời điểm công bố (published_at)
+ * - Sau khi công bố, nhân viên có thể xem và đăng ký
+ */
+export const publishWeeklySchedule = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+
+    const result = await service.publish(id);
+
+    return sendSuccess(
+      res,
+      toWeeklyScheduleResponseDto(result),
+      200,
+      "Công bố lịch tuần thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * ============================================
+ * ✅ HOÀN TẤT LỊCH TUẦN - FINALIZE SCHEDULE
+ * ============================================
+ * PUT /api/weekly-schedules/:id/finalize
+ * 
+ * Tính năng:
+ * - Thay đổi status từ "published" → "finalized"
+ * - Khóa lịch, không cho phép thay đổi nữa
+ */
+export const finalizeWeeklySchedule = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+
+    const result = await service.finalize(id);
+
+    return sendSuccess(
+      res,
+      toWeeklyScheduleResponseDto(result),
+      200,
+      "Hoàn tất lịch tuần thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Debug endpoint: verifies per-request Directus client access to `weekly_schedules`
 export const debugDirectusAccess = async (
   req: Request,

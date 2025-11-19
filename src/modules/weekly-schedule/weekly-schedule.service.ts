@@ -64,6 +64,65 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
     await this.repo.delete(id);
   }
 
+  /**
+   * ============================================
+   * 📢 CÔNG BỐ LỊCH TUẦN - PUBLISH
+   * ============================================
+   * Chuyển status từ "draft" → "published"
+   * Lưu thời điểm công bố
+   */
+  async publish(id: string) {
+    const existing = await this.repo.findById(id);
+    if (!existing)
+      throw new HttpError(
+        404,
+        "Không tìm thấy lịch làm việc tuần",
+        "WEEKLY_SCHEDULE_NOT_FOUND"
+      );
+
+    if (existing.status !== "draft") {
+      throw new HttpError(
+        400,
+        "Chỉ có thể công bố lịch ở trạng thái nháp",
+        "INVALID_STATUS"
+      );
+    }
+
+    return await this.repo.update(id, {
+      status: "published",
+      published_at: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * ============================================
+   * ✅ HOÀN TẤT LỊCH TUẦN - FINALIZE
+   * ============================================
+   * Chuyển status từ "published" → "finalized"
+   * Khóa lịch, không cho phép thay đổi
+   */
+  async finalize(id: string) {
+    const existing = await this.repo.findById(id);
+    if (!existing)
+      throw new HttpError(
+        404,
+        "Không tìm thấy lịch làm việc tuần",
+        "WEEKLY_SCHEDULE_NOT_FOUND"
+      );
+
+    if (existing.status !== "published") {
+      throw new HttpError(
+        400,
+        "Chỉ có thể hoàn tất lịch đã được công bố",
+        "INVALID_STATUS"
+      );
+    }
+
+    return await this.repo.update(id, {
+      status: "finalized",
+    });
+  }
+
   async createWeeklyScheduleWithShifts(
     data: Partial<WeeklySchedule> & { start_date: string },
     client?: any

@@ -7,6 +7,8 @@ import {
   getWeeklySchedule,
   listWeeklySchedules,
   updateWeeklySchedule,
+  publishWeeklySchedule,
+  finalizeWeeklySchedule,
   debugDirectusAccess,
 } from "./weekly-schedule.controller";
 import { requireAuth } from "../../middlewares/auth.middleware";
@@ -143,6 +145,52 @@ router.put(
  *         description: Không tìm thấy
  */
 router.delete("/:id", deleteWeeklySchedule);
+
+/**
+ * @swagger
+ * /weekly-schedules/{id}/publish:
+ *   put:
+ *     summary: Công bố lịch tuần (draft → published)
+ *     tags: [WeeklySchedules]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của lịch tuần
+ *     responses:
+ *       200:
+ *         description: Công bố thành công
+ *       400:
+ *         description: Lỗi trạng thái không hợp lệ
+ *       404:
+ *         description: Không tìm thấy
+ */
+router.put("/:id/publish", requireAuth(), publishWeeklySchedule);
+
+/**
+ * @swagger
+ * /weekly-schedules/{id}/finalize:
+ *   put:
+ *     summary: Hoàn tất lịch tuần (published → finalized)
+ *     tags: [WeeklySchedules]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của lịch tuần
+ *     responses:
+ *       200:
+ *         description: Hoàn tất thành công
+ *       400:
+ *         description: Lỗi trạng thái không hợp lệ
+ *       404:
+ *         description: Không tìm thấy
+ */
+router.put("/:id/finalize", requireAuth(), finalizeWeeklySchedule);
 
 router.get("/debug-directus", requireAuth(), debugDirectusAccess);
 
