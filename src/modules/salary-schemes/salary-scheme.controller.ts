@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import SalarySchemeService from "./salary-scheme.service";
 import { toSalarySchemeResponseDto } from "./salary-scheme.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new SalarySchemeService();
 
@@ -10,15 +11,16 @@ const service = new SalarySchemeService();
  * Lấy danh sách chế độ lương
  */
 export const listSalarySchemes = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toSalarySchemeResponseDto),
+      { items: data.data.map(toSalarySchemeResponseDto), ...data.meta },
       200,
       "Lấy danh sách chế độ lương thành công"
     );
