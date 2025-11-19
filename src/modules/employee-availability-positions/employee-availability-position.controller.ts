@@ -3,19 +3,24 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import EmployeeAvailabilityPositionsService from "./employee-availability-position.service";
 import { toEmployeeAvailabilityPositionResponseDto } from "./employee-availability-position.dto";
 import { HttpError } from "../../core/base";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new EmployeeAvailabilityPositionsService();
 
 export const listEmployeeAvailabilityPositions = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toEmployeeAvailabilityPositionResponseDto),
+      {
+        items: data.data.map(toEmployeeAvailabilityPositionResponseDto),
+        ...data.meta,
+      },
       200,
       "Lấy danh sách employee_availability_positions thành công"
     );
@@ -33,7 +38,10 @@ export const getEmployeeAvailabilityPosition = async (
     const id = String(req.params.id);
     const data = await service.get(id);
     if (!data)
-      throw new HttpError(404, "Không tìm thấy dữ liệu employee_availability_position");
+      throw new HttpError(
+        404,
+        "Không tìm thấy dữ liệu employee_availability_position"
+      );
     return sendSuccess(
       res,
       toEmployeeAvailabilityPositionResponseDto(data),

@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import EmployeeAvailabilityService from "./employee-availability.service";
 import { toEmployeeAvailabilityResponseDto } from "./employee-availability.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new EmployeeAvailabilityService();
 
@@ -10,15 +11,19 @@ const service = new EmployeeAvailabilityService();
  * Lấy danh sách availability
  */
 export const listEmployeeAvailabilities = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toEmployeeAvailabilityResponseDto),
+      {
+        items: data.data.map(toEmployeeAvailabilityResponseDto),
+        ...data.meta,
+      },
       200,
       "Lấy danh sách availability thành công"
     );

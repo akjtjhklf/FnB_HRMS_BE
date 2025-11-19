@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { EmployeeAvailability } from "./employee-availability.model";
 import EmployeeAvailabilityRepository from "./employee-availability.repository";
 
@@ -11,6 +15,13 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
     return await this.repo.findAll(query);
   }
 
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<EmployeeAvailability>> {
+    return await (this.repo as EmployeeAvailabilityRepository).findAllPaginated(
+      query
+    );
+  }
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item)
