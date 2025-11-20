@@ -65,29 +65,8 @@ export class EmployeeService extends BaseService<Employee> {
     return await this.repo.update(id, data);
   }
 
-  async remove(id: string | number) {
-    const employee = await this.repo.findById(id);
-    if (!employee)
-      throw new HttpError(
-        404,
-        "Không tìm thấy nhân viên",
-        "EMPLOYEE_NOT_FOUND"
-      );
-
-    try {
-      await this.repo.delete(id);
-    } catch (error: any) {
-      // Check if it's a foreign key constraint error
-      if (error.message && error.message.includes("foreign key constraint")) {
-        throw new HttpError(
-          409,
-          "Không thể xóa nhân viên này vì đang có dữ liệu liên quan (hợp đồng, chấm công, lương, v.v.). Vui lòng thay đổi trạng thái nhân viên thành 'Đã nghỉ việc' thay vì xóa.",
-          "EMPLOYEE_HAS_DEPENDENCIES"
-        );
-      }
-      throw error;
-    }
-  }
+  // remove() method được kế thừa từ BaseService với cascade delete tự động
+  // Nếu cần kiểm tra trước khi xóa, override lại và gọi super.remove(id)
 }
 
 export default EmployeeService;

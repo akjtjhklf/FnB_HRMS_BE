@@ -88,7 +88,7 @@ app.use("/api/monthly-payrolls", monthlyPayrollsRouter);
 // 🕒 Attendance & Shift
 app.use("/api/shifts", shiftsRouter);
 app.use("/api/shift-types", shiftTypesRouter);
-app.use("/api/weekly-schedule", weeklyScheduleRouter);
+app.use("/api/weekly-schedules", weeklyScheduleRouter);
 app.use("/api/attendance-shifts", attendanceShiftsRouter);
 app.use("/api/attendance-logs", attendanceLogsRouter);
 app.use("/api/attendance-adjustments", attendanceAdjustmentsRouter);

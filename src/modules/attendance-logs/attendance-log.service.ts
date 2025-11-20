@@ -43,6 +43,7 @@ export class AttendanceLogService extends BaseService<AttendanceLog> {
     const record = await this.repo.findById(id);
     if (!record)
       throw new HttpError(404, "Không tìm thấy bản ghi điểm danh", "NOT_FOUND");
+    
     await this.repo.delete(id);
   }
 }

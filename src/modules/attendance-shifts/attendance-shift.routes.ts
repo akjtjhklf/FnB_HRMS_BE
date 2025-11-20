@@ -21,7 +21,7 @@ router.post(
   validateBody(createAttendanceShiftSchema),
   createAttendanceShift
 );
-router.put(
+router.patch(
   "/:id",
   validateBody(updateAttendanceShiftSchema),
   updateAttendanceShift

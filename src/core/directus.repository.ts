@@ -326,10 +326,15 @@ export class DirectusRepository<
    */
   async createMany(data: Partial<T>[]): Promise<T[]> {
     try {
+      console.log(`📝 Creating ${data.length} items in ${this.collection}`);
       const createManyReq: any = (createItems as any)(this.collection as any, data);
       const created = await this.client.request(createManyReq);
       return created as T[];
     } catch (error: any) {
+      console.error(`❌ Directus createMany error for ${this.collection}:`, error?.errors?.[0]?.message || error?.message);
+      if (error?.errors) {
+        console.error("   Full errors:", JSON.stringify(error.errors, null, 2));
+      }
       throw new HttpError(
         500,
         "Không thể tạo nhiều dữ liệu",

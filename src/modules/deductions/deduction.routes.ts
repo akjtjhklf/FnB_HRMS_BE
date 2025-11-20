@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listDeductions);
 router.get("/:id", getDeduction);
 router.post("/", validateBody(createDeductionSchema), createDeduction);
-router.put("/:id", validateBody(updateDeductionSchema), updateDeduction);
+router.patch("/:id", validateBody(updateDeductionSchema), updateDeduction);
 router.delete("/:id", deleteDeduction);
 
 export default router;

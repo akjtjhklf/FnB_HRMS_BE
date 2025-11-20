@@ -72,6 +72,14 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
         "EMPLOYEE_AVAILABILITY_NOT_FOUND"
       );
 
+    // Cascade delete: xóa employee_availability_positions
+    const directusClient = (this.repo as any).directus;
+    
+    await directusClient.items("employee_availability_positions").delete({
+      filter: { availability_id: { _eq: id } }
+    });
+    
+    // Cuối cùng xóa employee_availability
     await this.repo.delete(id);
   }
 }

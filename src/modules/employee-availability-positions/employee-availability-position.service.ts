@@ -57,6 +57,7 @@ export class EmployeeAvailabilityPositionsService extends BaseService<EmployeeAv
         "Không tìm thấy dữ liệu",
         "EMPLOYEE_AVAILABILITY_POSITION_NOT_FOUND"
       );
+    
     await this.repo.delete(id);
   }
 }

@@ -1,5 +1,6 @@
 // src/core/base.ts
 import { parsePaginationParams } from './dto/pagination.dto';
+import { cascadeDelete, hasCascadeConfig } from '../utils/cascade-delete.utils';
 export type Identifier = number | string;
 
 export interface PaginatedResult<T> {
@@ -85,7 +86,16 @@ export abstract class BaseService<T extends { id?: Identifier }> {
 
   async remove(id: Identifier): Promise<void> {
     try {
-      await this.repo.delete(id);
+      // Check if cascade delete is configured for this collection
+      const collectionName = (this.repo as any).collection;
+      
+      if (hasCascadeConfig(collectionName)) {
+        console.log(`🔄 Using cascade delete for ${collectionName}:${id}`);
+        await cascadeDelete(collectionName, String(id));
+      } else {
+        // Normal delete
+        await this.repo.delete(id);
+      }
     } catch (error) {
       this.handleError(error, "DELETE_FAILED");
     }

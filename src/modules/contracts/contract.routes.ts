@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listContracts);
 router.get("/:id", getContract);
 router.post("/", validateBody(createContractSchema), createContract);
-router.put("/:id", validateBody(updateContractSchema), updateContract);
+router.patch("/:id", validateBody(updateContractSchema), updateContract);
 router.delete("/:id", deleteContract);
 
 export default router;
