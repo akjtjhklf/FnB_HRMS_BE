@@ -78,6 +78,40 @@ export const createShiftPositionRequirement = async (
 };
 
 /**
+ * Tạo nhiều yêu cầu vị trí ca làm cùng lúc
+ */
+export const createBulkShiftPositionRequirements = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    console.log("📦 Received bulk position requirements request");
+    console.log("📊 Request body:", JSON.stringify(req.body, null, 2));
+    
+    const items = req.body;
+    if (!Array.isArray(items)) {
+      console.error("❌ Body is not an array:", typeof items);
+      throw new HttpError(400, "Body phải là một mảng các yêu cầu vị trí");
+    }
+    
+    console.log(`✅ Valid array with ${items.length} items`);
+    const data = await service.createBulk(items);
+    console.log(`✅ Created ${data.length} position requirements successfully`);
+    
+    return sendSuccess(
+      res,
+      data.map(toShiftPositionRequirementResponseDto),
+      201,
+      `Tạo thành công ${data.length} yêu cầu vị trí ca làm`
+    );
+  } catch (err) {
+    console.error("❌ Error in createBulkShiftPositionRequirements:", err);
+    next(err);
+  }
+};
+
+/**
  * Cập nhật yêu cầu vị trí ca làm
  */
 export const updateShiftPositionRequirement = async (

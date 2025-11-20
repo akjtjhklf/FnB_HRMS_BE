@@ -115,3 +115,42 @@ export const deleteShift = async (
     next(err);
   }
 };
+
+/**
+ * ============================================
+ * 📦 TẠO NHIỀU CA CÙNG LÚC - BULK CREATE
+ * ============================================
+ * POST /api/shifts/bulk
+ * Body: {
+ *   shifts: CreateShiftDto[]
+ * }
+ */
+export const createBulkShifts = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { shifts } = req.body;
+    console.log("📦 Creating bulk shifts:", JSON.stringify(shifts, null, 2));
+
+    if (!Array.isArray(shifts) || shifts.length === 0) {
+      throw new HttpError(400, "shifts phải là mảng và không được rỗng");
+    }
+
+    const createdShifts = await service.createBulk(shifts);
+
+    return sendSuccess(
+      res,
+      {
+        total: createdShifts.length,
+        shifts: createdShifts.map(toShiftResponseDto),
+      },
+      201,
+      `Tạo thành công ${createdShifts.length} ca làm việc`
+    );
+  } catch (err) {
+    console.error("❌ Bulk create error:", err);
+    next(err);
+  }
+};
