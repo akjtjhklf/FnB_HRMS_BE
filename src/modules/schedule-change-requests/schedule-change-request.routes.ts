@@ -20,7 +20,7 @@ const router = Router();
 router.get("/", listScheduleChangeRequests);
 router.get("/:id", getScheduleChangeRequest);
 router.post("/", validateBody(createScheduleChangeRequestSchema), createScheduleChangeRequest);
-router.put("/:id", validateBody(updateScheduleChangeRequestSchema), updateScheduleChangeRequest);
+router.patch("/:id", validateBody(updateScheduleChangeRequestSchema), updateScheduleChangeRequest);
 router.delete("/:id", deleteScheduleChangeRequest);
 
 // ✅ NEW: Approve/Reject endpoints

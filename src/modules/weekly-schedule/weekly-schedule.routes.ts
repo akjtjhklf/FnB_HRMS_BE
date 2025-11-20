@@ -9,6 +9,9 @@ import {
   updateWeeklySchedule,
   publishWeeklySchedule,
   finalizeWeeklySchedule,
+  validateWeeklySchedule,
+  checkScheduleReadiness,
+  getScheduleStats,
   debugDirectusAccess,
 } from "./weekly-schedule.controller";
 import { requireAuth } from "../../middlewares/auth.middleware";
@@ -97,7 +100,7 @@ router.post(
 /**
  * @swagger
  * /weekly-schedules/{id}:
- *   put:
+ *   patch:
  *     summary: Cập nhật lịch tuần
  *     tags: [WeeklySchedules]
  *     parameters:
@@ -119,7 +122,7 @@ router.post(
  *       404:
  *         description: Không tìm thấy
  */
-router.put(
+router.patch(
   "/:id",
   validateBody(updateWeeklyScheduleSchema),
   updateWeeklySchedule
@@ -149,7 +152,7 @@ router.delete("/:id", deleteWeeklySchedule);
 /**
  * @swagger
  * /weekly-schedules/{id}/publish:
- *   put:
+ *   patch:
  *     summary: Công bố lịch tuần (draft → published)
  *     tags: [WeeklySchedules]
  *     parameters:
@@ -167,12 +170,12 @@ router.delete("/:id", deleteWeeklySchedule);
  *       404:
  *         description: Không tìm thấy
  */
-router.put("/:id/publish", requireAuth(), publishWeeklySchedule);
+router.patch("/:id/publish", requireAuth(), publishWeeklySchedule);
 
 /**
  * @swagger
  * /weekly-schedules/{id}/finalize:
- *   put:
+ *   patch:
  *     summary: Hoàn tất lịch tuần (published → finalized)
  *     tags: [WeeklySchedules]
  *     parameters:
@@ -190,7 +193,64 @@ router.put("/:id/publish", requireAuth(), publishWeeklySchedule);
  *       404:
  *         description: Không tìm thấy
  */
-router.put("/:id/finalize", requireAuth(), finalizeWeeklySchedule);
+router.patch("/:id/finalize", requireAuth(), finalizeWeeklySchedule);
+
+/**
+ * @swagger
+ * /weekly-schedules/{id}/validate:
+ *   get:
+ *     summary: Kiểm tra lịch tuần có thể publish không
+ *     tags: [WeeklySchedules]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của lịch tuần
+ *     responses:
+ *       200:
+ *         description: Kết quả kiểm tra
+ */
+router.get("/:id/validate", requireAuth(), validateWeeklySchedule);
+
+/**
+ * @swagger
+ * /weekly-schedules/{id}/check-readiness:
+ *   get:
+ *     summary: Kiểm tra đủ điều kiện chốt lịch (publish)
+ *     tags: [WeeklySchedules]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của lịch tuần
+ *     responses:
+ *       200:
+ *         description: Kết quả kiểm tra
+ */
+router.get("/:id/check-readiness", requireAuth(), checkScheduleReadiness);
+
+/**
+ * @swagger
+ * /weekly-schedules/{id}/stats:
+ *   get:
+ *     summary: Lấy thống kê lịch tuần
+ *     tags: [WeeklySchedules]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của lịch tuần
+ *     responses:
+ *       200:
+ *         description: Thống kê
+ */
+router.get("/:id/stats", requireAuth(), getScheduleStats);
 
 router.get("/debug-directus", requireAuth(), debugDirectusAccess);
 

@@ -19,7 +19,7 @@ router.get("/me", requireAuth(), getMe);
 router.get("/", listUsers);
 router.get("/:id", getUser);
 router.post("/", validateBody(createUserSchema), createUser);
-router.put("/:id", validateBody(updateUserSchema), updateUser);
+router.patch("/:id", validateBody(updateUserSchema), updateUser);
 router.delete("/:id", deleteUser);
 
 export default router;

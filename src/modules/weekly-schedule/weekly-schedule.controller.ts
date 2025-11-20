@@ -203,6 +203,94 @@ export const finalizeWeeklySchedule = async (
   }
 };
 
+/**
+ * ============================================
+ * ✅ VALIDATE LỊCH TUẦN - KIỂM TRA TRƯỚC KHI PUBLISH
+ * ============================================
+ * GET /api/weekly-schedules/:id/validate
+ * 
+ * Kiểm tra:
+ * - Có shifts chưa?
+ * - Có position requirements chưa?
+ * - Đủ nhân viên đăng ký chưa?
+ */
+export const validateWeeklySchedule = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const validation = await service.validateSchedule(id);
+    
+    return sendSuccess(
+      res,
+      validation,
+      200,
+      validation.canPublish ? "Lịch hợp lệ, có thể công bố" : "Lịch chưa đủ điều kiện"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * ============================================
+ * 🔍 KIỂM TRA ĐỦ ĐIỀU KIỆN CHỐT LỊCH
+ * ============================================
+ * GET /api/weekly-schedules/:id/check-readiness
+ * 
+ * Kiểm tra chi tiết:
+ * - Tất cả shifts có đủ assignments chưa
+ * - Tất cả positions có đủ người chưa
+ * - Có conflicts không
+ */
+export const checkScheduleReadiness = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const readiness = await service.checkReadiness(id);
+    
+    return sendSuccess(
+      res,
+      readiness,
+      200,
+      readiness.isReady ? "Lịch đã sẵn sàng publish" : "Lịch chưa sẵn sàng"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * ============================================
+ * 📊 THỐNG KÊ LỊCH TUẦN
+ * ============================================
+ * GET /api/weekly-schedules/:id/stats
+ */
+export const getScheduleStats = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const stats = await service.getStats(id);
+    
+    return sendSuccess(
+      res,
+      stats,
+      200,
+      "Lấy thống kê thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
 // Debug endpoint: verifies per-request Directus client access to `weekly_schedules`
 export const debugDirectusAccess = async (
   req: Request,

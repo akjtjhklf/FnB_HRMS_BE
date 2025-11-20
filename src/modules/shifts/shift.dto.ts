@@ -3,8 +3,8 @@ import { Shift } from "./shift.model";
 
 // ====== SCHEMAS ======
 export const createShiftSchema = z.object({
-  schedule_id: z.uuid().nullable().optional(),
-  shift_type_id: z.uuid(),
+  schedule_id: z.uuid("schedule_id phải là UUID"),
+  shift_type_id: z.uuid("shift_type_id phải là UUID"),
   shift_date: z.string(), // ISO date
   start_at: z.string().nullable().optional(),
   end_at: z.string().nullable().optional(),

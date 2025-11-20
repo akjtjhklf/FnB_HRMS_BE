@@ -56,7 +56,9 @@ export class ShiftTypeService extends BaseService<ShiftType> {
     return await this.repo.update(id, data);
   }
 
-  async remove(id: string) {
+  // remove() method được kế thừa từ BaseService với cascade delete tự động
+  
+  async removeOld(id: string) {
     try {
       const shift = await this.repo.findById(id);
       if (!shift)

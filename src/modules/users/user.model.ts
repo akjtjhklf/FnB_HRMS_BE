@@ -1,3 +1,12 @@
+export interface Role {
+  id: string;
+  name: string;
+  icon?: string | null;
+  description?: string | null;
+  admin_access?: boolean;
+  app_access?: boolean;
+}
+
 export interface User {
   id: string;
   first_name?: string | null;
@@ -12,7 +21,7 @@ export interface User {
   language?: string | null;
   tfa_secret?: string | null;
   status: "active" | "invited" | "suspended";
-  role?: string | null; // references directus_roles.id
+  role?: string | Role | null; // Can be ID or populated object
   token?: string | null;
   last_access?: string | null;
   last_page?: string | null;
@@ -28,6 +37,7 @@ export interface User {
   text_direction?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
+  employee_id?: string | null; // Link to employees table
 }
 
 export const USERS_COLLECTION = "directus_users";
