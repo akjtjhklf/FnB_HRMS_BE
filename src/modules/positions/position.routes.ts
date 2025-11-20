@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listPositions);
 router.get("/:id", getPosition);
 router.post("/", validateBody(createPositionSchema), createPosition);
-router.put("/:id", validateBody(updatePositionSchema), updatePosition);
+router.patch("/:id", validateBody(updatePositionSchema), updatePosition);
 router.delete("/:id", deletePosition);
 
 export default router;

@@ -67,13 +67,7 @@ export class RFIDCardService extends BaseService<RFIDCard> {
     });
   }
 
-  async remove(id: string) {
-    const existing = await this.repo.findById(id);
-    if (!existing)
-      throw new HttpError(404, "Không tìm thấy thẻ RFID", "CARD_NOT_FOUND");
-
-    await this.repo.delete(id);
-  }
+  // remove() method được kế thừa từ BaseService với cascade delete tự động
 }
 
 export default RFIDCardService;

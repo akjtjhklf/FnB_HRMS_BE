@@ -37,6 +37,10 @@ export class ShiftPositionRequirementService extends BaseService<ShiftPositionRe
     return await this.repo.create(data);
   }
 
+  async createBulk(items: Partial<ShiftPositionRequirement>[]) {
+    return await this.repo.createMany(items);
+  }
+
   async update(id: string, data: Partial<ShiftPositionRequirement>) {
     const existing = await this.repo.findById(id);
     if (!existing)

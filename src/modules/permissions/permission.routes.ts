@@ -17,7 +17,7 @@ const router = Router();
 router.get("/", listPermissions);
 router.get("/:id", getPermission);
 router.post("/", validateBody(createPermissionSchema), createPermission);
-router.put("/:id", validateBody(updatePermissionSchema), updatePermission);
+router.patch("/:id", validateBody(updatePermissionSchema), updatePermission);
 router.delete("/:id", deletePermission);
 
 export default router;
