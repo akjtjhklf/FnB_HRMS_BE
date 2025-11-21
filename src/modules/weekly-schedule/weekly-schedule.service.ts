@@ -58,7 +58,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
    * ============================================
    * 📢 CÔNG BỐ LỊCH TUẦN - PUBLISH
    * ============================================
-   * Chuyển status từ "draft" → "published"
+   * Chuyển status từ "draft" → "scheduled"
    * Lưu thời điểm công bố
    */
   async publish(id: string) {
@@ -79,7 +79,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
     }
 
     return await this.repo.update(id, {
-      status: "published",
+      status: "scheduled",
       published_at: new Date().toISOString(),
     });
   }
@@ -88,7 +88,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
    * ============================================
    * ✅ HOÀN TẤT LỊCH TUẦN - FINALIZE
    * ============================================
-   * Chuyển status từ "published" → "finalized"
+   * Chuyển status từ "scheduled" → "finalized"
    * Khóa lịch, không cho phép thay đổi
    */
   async finalize(id: string) {
@@ -100,7 +100,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
         "WEEKLY_SCHEDULE_NOT_FOUND"
       );
 
-    if (existing.status !== "published") {
+    if (existing.status !== "scheduled") {
       throw new HttpError(
         400,
         "Chỉ có thể hoàn tất lịch đã được công bố",
@@ -378,7 +378,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
       schedule,
       shifts: {
         total: shifts.length,
-        byDay: shifts.reduce((acc, shift) => {
+        byDay: shifts.reduce((acc: Record<number, number>, shift) => {
           const day = new Date(shift.shift_date).getDay();
           acc[day] = (acc[day] || 0) + 1;
           return acc;
@@ -386,15 +386,15 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
       },
       employees: {
         totalWithAvailability: availabilities.length > 0 
-          ? new Set(availabilities.map((a) => a.employee_id)).size 
+          ? new Set(availabilities.map((a: any) => a.employee_id)).size 
           : 0,
         totalAssigned: assignments.length > 0 
-          ? new Set(assignments.map((a) => a.employee_id)).size 
+          ? new Set(assignments.map((a: any) => a.employee_id)).size 
           : 0,
         avgShiftsPerEmployee:
           employeeAssignmentCounts.length > 0
             ? Math.round(
-                (employeeAssignmentCounts.reduce((a, b) => a + b, 0) / employeeAssignmentCounts.length) * 100
+                (employeeAssignmentCounts.reduce((a: number, b: number) => a + b, 0) / employeeAssignmentCounts.length) * 100
               ) / 100
             : 0,
         minShifts: employeeAssignmentCounts.length > 0 ? Math.min(...employeeAssignmentCounts) : 0,
@@ -406,11 +406,11 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
       assignments: {
         total: assignments.length,
         bySource: {
-          auto: assignments.filter((a) => a.source === "auto").length,
-          manual: assignments.filter((a) => a.source === "manual").length,
+          auto: assignments.filter((a: any) => a.source === "auto").length,
+          manual: assignments.filter((a: any) => a.source === "manual").length,
         },
-        confirmed: assignments.filter((a) => a.confirmed_by_employee).length,
-        pending: assignments.filter((a) => !a.confirmed_by_employee).length,
+        confirmed: assignments.filter((a: any) => a.confirmed_by_employee).length,
+        pending: assignments.filter((a: any) => !a.confirmed_by_employee).length,
       },
     };
   }

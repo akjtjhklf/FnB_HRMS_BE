@@ -18,7 +18,6 @@ export const listShiftPositionRequirements = async (
   try {
     const query = parsePaginationQuery(req);
     const result = await service.listPaginated(query);
-    // Cast result to PaginatedResponse<ShiftPositionRequirement>
     return sendSuccess(
       res,
       {

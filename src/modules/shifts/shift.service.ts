@@ -13,6 +13,12 @@ export class ShiftService extends BaseService<Shift> {
   }
 
   async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<Shift>> {
+    // Ensure fields are properly passed to repository for relation population
+    if (!query.fields || query.fields.length === 0) {
+      // Default: include all shift fields + shift_type relation
+      // Note: Directus uses the foreign key name for relations (shift_type_id not shift_type)
+      query.fields = ['*', 'shift_type_id.*'];
+    }
     return await (this.repo as ShiftRepository).findAllPaginated(query);
   }
 
@@ -73,45 +79,43 @@ export class ShiftService extends BaseService<Shift> {
 
     // Get all unique shift type IDs
     const shiftTypeIds = [...new Set(shifts.map(s => s.shift_type_id).filter(Boolean))];
+    console.log(`🔍 Found ${shiftTypeIds.length} unique shift types: ${shiftTypeIds.join(', ')}`);
     
     // Fetch all shift types at once
     const shiftTypes = await this.shiftTypeRepo.findAll({
       filter: { id: { _in: shiftTypeIds } },
     });
+    console.log(`📦 Loaded ${shiftTypes.length} shift type definitions`);
     
     // Create a map for quick lookup
     const shiftTypeMap = new Map(shiftTypes.map((st: any) => [st.id, st]));
 
-    // Process shifts: fill in missing start_at/end_at from shift_type, convert to ISO datetime
-    const processedShifts = shifts.map((shift) => {
-      const shiftType = shiftTypeMap.get(shift.shift_type_id!);
-      
-      // Use shift's times if provided, otherwise fallback to shift_type's default times
-      let startTime = shift.start_at;
-      let endTime = shift.end_at;
-      
-      if (!startTime && shiftType) {
-        startTime = (shiftType as any).default_start_time || (shiftType as any).start_time;
-      }
-      if (!endTime && shiftType) {
-        endTime = (shiftType as any).default_end_time || (shiftType as any).end_time;
-      }
-
+    // Process shifts: DON'T send start_at/end_at for bulk create
+    // These are DATETIME fields in Directus but we only have TIME values
+    // Let Directus handle these based on shift_type relationship
+    const processedShifts = shifts.map((shift, index) => {
       return {
-        ...shift,
-        start_at: shift.shift_date && startTime 
-          ? `${shift.shift_date}T${startTime}` 
-          : startTime || null,
-        end_at: shift.shift_date && endTime 
-          ? `${shift.shift_date}T${endTime}` 
-          : endTime || null,
+        schedule_id: shift.schedule_id,
+        shift_type_id: shift.shift_type_id,
+        shift_date: shift.shift_date,
+        total_required: shift.total_required,
+        notes: shift.notes,
+        // OMIT start_at and end_at - they're DATETIME fields but we only have TIME
+        // Directus will reject HH:mm:ss format for DATETIME fields
       };
     });
 
     console.log(`🔄 Processed ${processedShifts.length} shifts with times from shift_types`);
-    console.log(`📝 Sample shift:`, JSON.stringify(processedShifts[0], null, 2));
+    console.log(`📝 First processed shift:`, JSON.stringify(processedShifts[0], null, 2));
+    console.log(`📝 Last processed shift:`, JSON.stringify(processedShifts[processedShifts.length - 1], null, 2));
     
-    return await (this.repo as ShiftRepository).createMany(processedShifts);
+    console.log(`🚀 Calling repository.createMany with ${processedShifts.length} shifts...`);
+    const created = await (this.repo as ShiftRepository).createMany(processedShifts);
+    console.log(`✅ Repository createMany returned ${created.length} shifts`);
+    console.log(`📋 Created shift dates:`, created.map((s: any) => s.shift_date));
+    console.log(`📋 Created shift IDs:`, created.map((s: any) => s.id));
+    
+    return created;
   }
 }
 

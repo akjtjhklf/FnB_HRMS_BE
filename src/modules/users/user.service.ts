@@ -30,6 +30,21 @@ export class UserService extends BaseService<User> {
   }
 
   /**
+   * Lấy thông tin user hiện tại (dùng cho /users/me)
+   * Sẽ populate employee info nếu có
+   */
+  async getCurrentUser(directusClient: any) {
+    try {
+      // Sử dụng AuthService để lấy full identity
+      const authService = (await import("../auth/auth.service")).default;
+      return await authService.getUserIdentity(directusClient);
+    } catch (error) {
+      console.error("❌ Error getting current user:", error);
+      throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
+    }
+  }
+
+  /**
    * Tạo người dùng mới — dùng Zod để validate
    */
   async create(data: Partial<User>) {

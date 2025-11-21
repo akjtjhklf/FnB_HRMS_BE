@@ -37,17 +37,24 @@ export type UpdateShiftDto = z.infer<typeof updateShiftSchema>;
 export type ShiftResponseDto = z.infer<typeof shiftResponseSchema>;
 
 // ====== MAPPER ======
-export const toShiftResponseDto = (entity: Shift): ShiftResponseDto => ({
-  id: entity.id,
-  schedule_id: entity.schedule_id ?? null,
-  shift_type_id: entity.shift_type_id,
-  shift_date: entity.shift_date,
-  start_at: entity.start_at ?? null,
-  end_at: entity.end_at ?? null,
-  total_required: entity.total_required ?? null,
-  notes: entity.notes ?? null,
-  metadata: entity.metadata ?? null,
-  created_by: entity.created_by ?? null,
-  created_at: entity.created_at ?? null,
-  updated_at: entity.updated_at ?? null,
-});
+export const toShiftResponseDto = (entity: any): any => {
+  // Don't use strict DTO - pass through all Directus data including relations
+  // This allows shift_type, weekly_schedule, etc. to be included in response
+  return {
+    id: entity.id,
+    schedule_id: entity.schedule_id ?? null,
+    shift_type_id: entity.shift_type_id,
+    shift_date: entity.shift_date,
+    start_at: entity.start_at ?? null,
+    end_at: entity.end_at ?? null,
+    total_required: entity.total_required ?? null,
+    notes: entity.notes ?? null,
+    metadata: entity.metadata ?? null,
+    created_by: entity.created_by ?? null,
+    created_at: entity.created_at ?? null,
+    updated_at: entity.updated_at ?? null,
+    // Pass through any additional fields from Directus (relations, etc.)
+    ...(entity.shift_type && { shift_type: entity.shift_type }),
+    ...(entity.weekly_schedule && { weekly_schedule: entity.weekly_schedule }),
+  };
+};

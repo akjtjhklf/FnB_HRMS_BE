@@ -33,7 +33,7 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
     return item;
   }
 
-  async create(data: Partial<EmployeeAvailability>) {
+  async create(data: Partial<EmployeeAvailability> & { positions?: string[] }) {
     // kiểm tra trùng employee_id + shift_id nếu cần
     const existing = await this.repo.findAll({
       filter: {
@@ -48,7 +48,26 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
         "DUPLICATE_AVAILABILITY"
       );
 
-    return await this.repo.create(data);
+    // Extract positions array (nếu có)
+    const { positions, ...availabilityData } = data;
+
+    // Step 1: Tạo availability record
+    const availability = await this.repo.create(availabilityData);
+
+    // Step 2: Nếu có positions, tạo employee-availability-positions records
+    if (positions && positions.length > 0) {
+      const directusClient = (this.repo as any).directus;
+      
+      const positionRecords = positions.map((positionId, index) => ({
+        availability_id: availability.id,
+        position_id: positionId,
+        preference_order: index + 1
+      }));
+
+      await directusClient.items("employee_availability_positions").createMany(positionRecords);
+    }
+
+    return availability;
   }
 
   async update(id: string, data: Partial<EmployeeAvailability>) {

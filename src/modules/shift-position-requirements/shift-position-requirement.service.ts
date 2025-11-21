@@ -38,7 +38,7 @@ export class ShiftPositionRequirementService extends BaseService<ShiftPositionRe
   }
 
   async createBulk(items: Partial<ShiftPositionRequirement>[]) {
-    return await this.repo.createMany(items);
+    return await (this.repo as ShiftPositionRequirementRepository).createMany(items);
   }
 
   async update(id: string, data: Partial<ShiftPositionRequirement>) {

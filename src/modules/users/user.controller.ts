@@ -118,6 +118,7 @@
 
   /**
    * Lấy thông tin user hiện tại (authenticated user)
+   * Bao gồm Employee, Role, Policies, và Permissions
    */
   export const getMe = async (
     req: Request,
@@ -125,16 +126,18 @@
     next: NextFunction
   ) => {
     try {
-      // User đã được attach vào req bởi requireAuth middleware
-      const currentUser = (req as any).user;
+      const directusClient = (req as any).directusClient;
       
-      if (!currentUser) {
+      if (!directusClient) {
         throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
       }
 
+      // Sử dụng service để lấy full identity
+      const identity = await service.getCurrentUser(directusClient);
+
       return sendSuccess(
         res,
-        toUserResponseDto(currentUser),
+        identity,
         200,
         "Lấy thông tin người dùng hiện tại thành công"
       );

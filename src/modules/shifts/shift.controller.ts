@@ -17,6 +17,7 @@ export const listShifts = async (
 ) => {
   try {
     const query = parsePaginationQuery(req);
+    console.log('🔍 [Shifts Controller] Parsed query:', JSON.stringify(query, null, 2));
     const result = await service.listPaginated(query);
     
     return sendSuccess(
@@ -132,20 +133,30 @@ export const createBulkShifts = async (
 ) => {
   try {
     const { shifts } = req.body;
-    console.log("📦 Creating bulk shifts:", JSON.stringify(shifts, null, 2));
+    console.log(`📦 Received bulk create request for ${shifts?.length || 0} shifts`);
+    console.log("📝 First shift sample:", JSON.stringify(shifts?.[0], null, 2));
+    console.log("📝 Last shift sample:", JSON.stringify(shifts?.[shifts?.length - 1], null, 2));
 
     if (!Array.isArray(shifts) || shifts.length === 0) {
       throw new HttpError(400, "shifts phải là mảng và không được rỗng");
     }
 
     const createdShifts = await service.createBulk(shifts);
+    console.log(`✅ Successfully created ${createdShifts.length} shifts`);
+    console.log(`📋 Created shift IDs:`, createdShifts.map((s: any) => s.id));
+    
+    const responseData = {
+      total: createdShifts.length,
+      shifts: createdShifts.map(toShiftResponseDto),
+    };
+    
+    console.log(`📤 Sending response with ${responseData.shifts.length} shifts`);
+    console.log(`📤 First shift in response:`, responseData.shifts[0]?.id);
+    console.log(`📤 Last shift in response:`, responseData.shifts[responseData.shifts.length - 1]?.id);
 
     return sendSuccess(
       res,
-      {
-        total: createdShifts.length,
-        shifts: createdShifts.map(toShiftResponseDto),
-      },
+      responseData,
       201,
       `Tạo thành công ${createdShifts.length} ca làm việc`
     );

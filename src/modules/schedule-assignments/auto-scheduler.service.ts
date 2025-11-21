@@ -577,9 +577,12 @@ export class AutoSchedulerService {
     const availabilityIds = availabilities.map(a => a.id);
 
     // Load availability positions
-    const availabilityPositions = await this.availabilityPositionRepo.findMany({
-      filter: { availability_id: { _in: availabilityIds } },
-    });
+    let availabilityPositions: EmployeeAvailabilityPosition[] = [];
+    if (availabilityIds.length > 0) {
+      availabilityPositions = await this.availabilityPositionRepo.findMany({
+        filter: { availability_id: { _in: availabilityIds } },
+      });
+    }
 
     // Load current assignments
     const currentAssignments = await this.assignmentRepo.findMany({
