@@ -87,14 +87,32 @@ export const CASCADE_DELETE_MAP: Record<string, Array<{ table: string; field: st
 };
 
 /**
- * Xóa cascade tất cả các records liên quan
+ * Xóa cascade tất cả các records liên quan (RECURSIVE)
  * @param tableName - Tên bảng cha cần xóa
  * @param recordId - ID của record cần xóa
+ * @param depth - Độ sâu recursion hiện tại (để tránh infinite loop)
+ * @param visited - Set các records đã xóa (để tránh circular reference)
  */
 export async function cascadeDelete(
   tableName: string,
-  recordId: string
+  recordId: string,
+  depth: number = 0,
+  visited: Set<string> = new Set()
 ): Promise<{ deletedCount: number; deletedTables: string[] }> {
+  // Prevent infinite loops
+  const MAX_DEPTH = 10;
+  if (depth > MAX_DEPTH) {
+    console.warn(`⚠️  Max cascade depth (${MAX_DEPTH}) reached for ${tableName}:${recordId}`);
+    return { deletedCount: 0, deletedTables: [] };
+  }
+
+  // Prevent circular references
+  const visitKey = `${tableName}:${recordId}`;
+  if (visited.has(visitKey)) {
+    return { deletedCount: 0, deletedTables: [] };
+  }
+  visited.add(visitKey);
+
   // Import directus client from utils
   const { directus } = await import('./directusClient');
   const client = directus;
@@ -105,10 +123,13 @@ export async function cascadeDelete(
   // Get dependent tables
   const dependents = CASCADE_DELETE_MAP[tableName] || [];
 
-  console.log(`🗑️  Starting cascade delete for ${tableName}:${recordId}`);
-  console.log(`📋 Found ${dependents.length} dependent tables`);
+  const indent = '  '.repeat(depth);
+  if (depth === 0) {
+    console.log(`${indent}🗑️  Starting cascade delete for ${tableName}:${recordId}`);
+  }
+  console.log(`${indent}📋 Found ${dependents.length} dependent table(s) for ${tableName}`);
 
-  // Delete dependent records first (in order)
+  // Delete dependent records first (in order) - RECURSIVE
   for (const dep of dependents) {
     try {
       // Fetch dependent records using Directus SDK
@@ -122,7 +143,7 @@ export async function cascadeDelete(
       );
 
       if (!records || records.length === 0) {
-        console.log(`✓ No records in ${dep.table} with ${dep.field}=${recordId}`);
+        console.log(`${indent}✓ No records in ${dep.table} with ${dep.field}=${recordId}`);
         continue;
       }
 
@@ -137,20 +158,36 @@ export async function cascadeDelete(
           updateItems(dep.table as any, recordIds, { [dep.field]: null })
         );
         
-        console.log(`✓ Set ${dep.field} to null for ${records.length} records in ${dep.table}`);
+        console.log(`${indent}✓ Set ${dep.field} to null for ${records.length} records in ${dep.table}`);
         continue;
       }
 
-      // Delete dependent records using Directus SDK (default action)
+      // 🔥 RECURSIVE CASCADE DELETE for each child record
+      console.log(`${indent}→ Cascade deleting ${records.length} record(s) from ${dep.table}...`);
+      for (const childRecord of records) {
+        const childResult = await cascadeDelete(dep.table, childRecord.id, depth + 1, visited);
+        totalDeleted += childResult.deletedCount;
+        childResult.deletedTables.forEach(t => {
+          if (!deletedTables.includes(t)) deletedTables.push(t);
+        });
+      }
+
+      // After recursive delete, the child records should already be deleted
+      // But we still try to delete them explicitly as a safety measure
       const { deleteItems } = await import('@directus/sdk');
+      try {
+        await client.request(deleteItems(dep.table as any, recordIds));
+        console.log(`${indent}✓ Deleted ${records.length} records from ${dep.table}`);
+      } catch (error: any) {
+        // If records already deleted by recursive call, this will fail - that's OK
+        console.log(`${indent}✓ ${dep.table} records already deleted (by recursive cascade)`);
+      }
       
-      await client.request(deleteItems(dep.table as any, recordIds));
-      
-      deletedTables.push(dep.table);
-      totalDeleted += records.length;
-      console.log(`✓ Deleted ${records.length} records from ${dep.table}`);
+      if (!deletedTables.includes(dep.table)) {
+        deletedTables.push(dep.table);
+      }
     } catch (error: any) {
-      console.error(`❌ Error processing ${dep.table}:`, error?.message || error?.errors?.[0]?.message || String(error));
+      console.error(`${indent}❌ Error processing ${dep.table}:`, error?.message || error?.errors?.[0]?.message || String(error));
       // Continue with other tables
     }
   }
@@ -160,14 +197,16 @@ export async function cascadeDelete(
     const { deleteItem } = await import('@directus/sdk');
     await client.request(deleteItem(tableName as any, recordId));
     
-    console.log(`✓ Deleted main record from ${tableName}`);
+    console.log(`${indent}✓ Deleted main record from ${tableName}`);
     totalDeleted += 1;
   } catch (error: any) {
-    console.error(`❌ Error deleting main record from ${tableName}:`, error.message);
+    console.error(`${indent}❌ Error deleting main record from ${tableName}:`, error.message);
     throw error;
   }
 
-  console.log(`🎉 Cascade delete completed: ${totalDeleted} records deleted from ${deletedTables.length + 1} tables`);
+  if (depth === 0) {
+    console.log(`🎉 Cascade delete completed: ${totalDeleted} total records deleted`);
+  }
 
   return {
     deletedCount: totalDeleted,

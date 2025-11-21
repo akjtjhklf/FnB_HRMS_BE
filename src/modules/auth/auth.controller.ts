@@ -3,6 +3,8 @@ import { HttpError } from "../../core/base";
 import { ApiResponse } from "../../core/response";
 import { directus } from "../../utils/directusClient";
 import { sendError } from "../../core/response";
+import authService from "./auth.service";
+import { createDirectus, rest, staticToken } from "@directus/sdk";
 
 export const login = async (
   req: Request,
@@ -87,5 +89,33 @@ export const refresh = async (
     console.error("Error message:", error?.message);
     console.error("Error details:", error);
     return sendError(res, "Unable to refresh token. Please log in again.", 401);
+  }
+};
+
+/**
+ * Get current user identity with full Employee, Role, and Permissions
+ * Route: GET /api/auth/me
+ */
+export const getMe = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>
+) => {
+  try {
+    const userClient = (req as any).directusClient;
+    
+    if (!userClient) {
+      return sendError(res, "Unauthorized", 401);
+    }
+
+    // Get full identity using AuthService
+    const identity = await authService.getUserIdentity(userClient);
+
+    return res.json({
+      success: true,
+      data: identity
+    });
+  } catch (error: any) {
+    console.error("❌ Get me failed:", error);
+    return sendError(res, error?.message || "Failed to get user info", 401);
   }
 };
