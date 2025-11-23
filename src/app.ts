@@ -9,6 +9,7 @@ import authRouter from "./modules/auth/auth.routes";
 import usersRouter from "./modules/users/user.routes";
 import pemissionsRouter from "./modules/permissions/permission.routes";
 import policiesRouter from "./modules/policies/policy.routes";
+import collectionsRouter from "./modules/collections/collection.routes";
 
 // ========== HR CORE ==========
 import employeesRouter from "./modules/employees/employee.routes";
@@ -73,6 +74,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/permissions", pemissionsRouter);
 app.use("/api/policies", policiesRouter);
+app.use("/api/collections", collectionsRouter);
 
 // 👨‍💼 HR Core
 app.use("/api/employees", employeesRouter);
