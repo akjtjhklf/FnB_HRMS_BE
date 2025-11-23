@@ -24,10 +24,10 @@ export async function ensureAuth() {
       throw new Error('DIRECTUS_EMAIL or DIRECTUS_PASSWORD is not defined');
     }
 
-    await directus.login(
-      process.env.DIRECTUS_EMAIL,
-      process.env.DIRECTUS_PASSWORD
-    );
+    await directus.login({
+      email: process.env.DIRECTUS_EMAIL,
+      password: process.env.DIRECTUS_PASSWORD
+    });
     
     isAuthenticated = true;
     console.log('✅ Authenticated with Directus as:', process.env.DIRECTUS_EMAIL);

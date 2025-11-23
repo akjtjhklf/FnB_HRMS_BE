@@ -38,12 +38,26 @@ export type ShiftResponseDto = z.infer<typeof shiftResponseSchema>;
 
 // ====== MAPPER ======
 export const toShiftResponseDto = (entity: any): any => {
-  // Don't use strict DTO - pass through all Directus data including relations
-  // This allows shift_type, weekly_schedule, etc. to be included in response
+  // When Directus expands relations via 'shift_type_id.field', it returns the related object
+  // nested under 'shift_type_id' instead of as a separate 'shift_type' field.
+  // We need to extract this and provide both shift_type_id (string) and shift_type (object).
+  
+  let shiftType = null;
+  let shiftTypeId = entity.shift_type_id;
+  
+  // Check if shift_type_id is an object (expanded relation) or a string (just the ID)
+  if (typeof entity.shift_type_id === 'object' && entity.shift_type_id !== null) {
+    shiftType = entity.shift_type_id; // The expanded relation object
+    shiftTypeId = entity.shift_type_id.id; // Extract the ID from the object
+  } else if (entity.shift_type) {
+    // Fallback: check if shift_type exists as a separate field
+    shiftType = entity.shift_type;
+  }
+  
   return {
     id: entity.id,
     schedule_id: entity.schedule_id ?? null,
-    shift_type_id: entity.shift_type_id,
+    shift_type_id: shiftTypeId, // Always return as string ID
     shift_date: entity.shift_date,
     start_at: entity.start_at ?? null,
     end_at: entity.end_at ?? null,
@@ -53,8 +67,9 @@ export const toShiftResponseDto = (entity: any): any => {
     created_by: entity.created_by ?? null,
     created_at: entity.created_at ?? null,
     updated_at: entity.updated_at ?? null,
-    // Pass through any additional fields from Directus (relations, etc.)
-    ...(entity.shift_type && { shift_type: entity.shift_type }),
+    // Include shift_type object if it was expanded
+    ...(shiftType && { shift_type: shiftType }),
+    // Pass through weekly_schedule if present
     ...(entity.weekly_schedule && { weekly_schedule: entity.weekly_schedule }),
   };
 };

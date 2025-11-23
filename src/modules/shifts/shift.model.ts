@@ -2,6 +2,7 @@ export interface Shift {
   id: string; // UUID
   schedule_id?: string | null; // references weekly_schedule.id
   shift_type_id: string; // references shift_types.id
+  shift_type?: any; // Populated relation from Directus when expanded
   shift_date: string; // ISO date
   start_at?: string | null;
   end_at?: string | null;
