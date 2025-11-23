@@ -53,16 +53,7 @@ export class PositionService extends BaseService<Position> {
     return await this.repo.update(id, data);
   }
 
-  /**
-   * Xoá vị trí
-   */
-  async remove(id: number | string) {
-    const position = await this.repo.findById(id);
-    if (!position)
-      throw new HttpError(404, "Không tìm thấy vị trí", "POSITION_NOT_FOUND");
-
-    await this.repo.delete(id);
-  }
+  // remove() method được kế thừa từ BaseService với cascade delete tự động
 }
 
 export default PositionService;

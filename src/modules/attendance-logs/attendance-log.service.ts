@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { AttendanceLog } from "./attendance-log.model";
 import AttendanceLogRepository from "./attendance-log.repository";
 
@@ -10,7 +14,11 @@ export class AttendanceLogService extends BaseService<AttendanceLog> {
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
   }
-
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<AttendanceLog>> {
+    return await (this.repo as AttendanceLogRepository).findAllPaginated(query);
+  }
   async get(id: string) {
     const record = await this.repo.findById(id);
     if (!record)
@@ -35,6 +43,7 @@ export class AttendanceLogService extends BaseService<AttendanceLog> {
     const record = await this.repo.findById(id);
     if (!record)
       throw new HttpError(404, "Không tìm thấy bản ghi điểm danh", "NOT_FOUND");
+    
     await this.repo.delete(id);
   }
 }

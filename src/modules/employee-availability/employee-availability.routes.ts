@@ -21,7 +21,7 @@ router.post(
   validateBody(createEmployeeAvailabilitySchema),
   createEmployeeAvailability
 );
-router.put(
+router.patch(
   "/:id",
   validateBody(updateEmployeeAvailabilitySchema),
   updateEmployeeAvailability

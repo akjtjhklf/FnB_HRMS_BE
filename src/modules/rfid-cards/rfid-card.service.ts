@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { BaseService, HttpError } from "../../core/base";
 import { RFIDCard } from "./rfid-card.model";
 import RFIDCardRepository from "./rfid-card.repository";
+import { PaginatedResponse, PaginationQueryDto } from "../../core/dto/pagination.dto";
 
 export class RFIDCardService extends BaseService<RFIDCard> {
   declare repo: RFIDCardRepository;
@@ -13,7 +14,13 @@ export class RFIDCardService extends BaseService<RFIDCard> {
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
   }
-
+ async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<RFIDCard>> {
+    return await (
+      this.repo as RFIDCardRepository
+    ).findAllPaginated(query);
+  }
   async get(id: string) {
     const card = await this.repo.findById(id);
     if (!card)
@@ -60,13 +67,7 @@ export class RFIDCardService extends BaseService<RFIDCard> {
     });
   }
 
-  async remove(id: string) {
-    const existing = await this.repo.findById(id);
-    if (!existing)
-      throw new HttpError(404, "Không tìm thấy thẻ RFID", "CARD_NOT_FOUND");
-
-    await this.repo.delete(id);
-  }
+  // remove() method được kế thừa từ BaseService với cascade delete tự động
 }
 
 export default RFIDCardService;

@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listDevices);
 router.get("/:id", getDevice);
 router.post("/", validateBody(createDeviceSchema), createDevice);
-router.put("/:id", validateBody(updateDeviceSchema), updateDevice);
+router.patch("/:id", validateBody(updateDeviceSchema), updateDevice);
 router.delete("/:id", deleteDevice);
 
 export default router;

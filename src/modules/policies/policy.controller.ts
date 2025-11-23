@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import PolicyService from "./policy.service";
 import { toPolicyResponseDto } from "./policy.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new PolicyService();
 
@@ -10,15 +11,16 @@ const service = new PolicyService();
  * Lấy danh sách policy
  */
 export const listPolicies = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toPolicyResponseDto),
+      { items: data.data.map(toPolicyResponseDto), ...data.meta },
       200,
       "Lấy danh sách policy thành công"
     );

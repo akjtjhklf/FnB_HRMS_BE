@@ -17,7 +17,7 @@ const router = Router();
 router.get("/", listSalaryRequests);
 router.get("/:id", getSalaryRequest);
 router.post("/", validateBody(createSalaryRequestSchema), createSalaryRequest);
-router.put(
+router.patch(
   "/:id",
   validateBody(updateSalaryRequestSchema),
   updateSalaryRequest

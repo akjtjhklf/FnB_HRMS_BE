@@ -29,7 +29,7 @@ router.get("/schedule/:scheduleId/stats", getScheduleStats);
 router.get("/", listScheduleAssignments);
 router.get("/:id", getScheduleAssignment);
 router.post("/", validateBody(createScheduleAssignmentSchema), createScheduleAssignment);
-router.put("/:id", validateBody(updateScheduleAssignmentSchema), updateScheduleAssignment);
+router.patch("/:id", validateBody(updateScheduleAssignmentSchema), updateScheduleAssignment);
 router.delete("/:id", deleteScheduleAssignment);
 
 export default router;

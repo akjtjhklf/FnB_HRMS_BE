@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import RoleService from "./role.service";
 import { toRoleResponseDto } from "./role.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new RoleService();
 
@@ -10,15 +11,16 @@ const service = new RoleService();
  * Lấy danh sách role
  */
 export const listRoles = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toRoleResponseDto),
+      { items: data.data.map(toRoleResponseDto), ...data.meta },
       200,
       "Lấy danh sách role thành công"
     );

@@ -43,9 +43,11 @@ export type UpdateEmployeeDto = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeResponseDto = z.infer<typeof employeeResponseSchema>;
 
 // Mapper
+import { UserResponseDto, toUserResponseDto } from "../users/user.dto"; // giả sử bạn có DTO user/role
+
 export const toEmployeeResponseDto = (
   entity: Employee
-): EmployeeResponseDto => ({
+): EmployeeResponseDto & { user?: UserResponseDto } => ({
   id: entity.id,
   user_id: entity.user_id ?? null,
   employee_code: entity.employee_code,
@@ -62,10 +64,18 @@ export const toEmployeeResponseDto = (
   termination_date: entity.termination_date ?? null,
   status: entity.status ?? "active",
   scheme_id: entity.scheme_id ?? null,
-  default_work_hours_per_week: entity.default_work_hours_per_week ?? null,
-  max_hours_per_week: entity.max_hours_per_week ?? null,
-  max_consecutive_days: entity.max_consecutive_days ?? null,
-  min_rest_hours_between_shifts: entity.min_rest_hours_between_shifts ?? null,
+  default_work_hours_per_week: entity.default_work_hours_per_week 
+    ? Number(entity.default_work_hours_per_week) 
+    : null,
+  max_hours_per_week: entity.max_hours_per_week 
+    ? Number(entity.max_hours_per_week) 
+    : null,
+  max_consecutive_days: entity.max_consecutive_days 
+    ? Number(entity.max_consecutive_days) 
+    : null,
+  min_rest_hours_between_shifts: entity.min_rest_hours_between_shifts 
+    ? Number(entity.min_rest_hours_between_shifts) 
+    : null,
   photo_url: entity.photo_url ?? null,
   emergency_contact_name: entity.emergency_contact_name ?? null,
   emergency_contact_phone: entity.emergency_contact_phone ?? null,
@@ -73,4 +83,5 @@ export const toEmployeeResponseDto = (
   metadata: entity.metadata ?? null,
   created_at: entity.created_at ?? null,
   updated_at: entity.updated_at ?? null,
+  user: entity.user ? toUserResponseDto(entity.user) : undefined,
 });

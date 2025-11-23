@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { Permission } from "./permission.model";
 import PermissionRepository from "./permission.repository";
 
@@ -10,7 +14,11 @@ export class PermissionService extends BaseService<Permission> {
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
   }
-
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<Permission>> {
+    return await (this.repo as PermissionRepository).findAllPaginated(query);
+  }
   async get(id: number | string) {
     const permission = await this.repo.findById(id);
     if (!permission)

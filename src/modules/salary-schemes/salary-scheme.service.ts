@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { SalaryScheme } from "./salary-scheme.model";
 import SalarySchemeRepository from "./salary-scheme.repository";
 
@@ -12,6 +16,12 @@ export class SalarySchemeService extends BaseService<SalaryScheme> {
    */
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<SalaryScheme>> {
+    return await (this.repo as SalarySchemeRepository).findAllPaginated(query);
   }
 
   /**

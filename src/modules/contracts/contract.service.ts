@@ -1,15 +1,32 @@
 import { BaseService, HttpError } from "../../core/base";
 import { Contract } from "./contract.model";
 import ContractRepository from "./contract.repository";
-import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
+import {
+  PaginationQueryDto,
+  PaginatedResponse,
+} from "../../core/dto/pagination.dto";
+import { toEmployeeResponseDto } from "../employees/employee.dto";
 
 export class ContractService extends BaseService<Contract> {
   constructor(repo = new ContractRepository()) {
     super(repo);
   }
 
-  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<Contract>> {
-    return await (this.repo as ContractRepository).findAllPaginated(query);
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<any>> {
+    const { data, meta } = await (
+      this.repo as ContractRepository
+    ).findAllPaginated(query);
+
+    const mappedData = data.map((contract) => ({
+      ...contract,
+      employee: contract.employee_id
+        ? toEmployeeResponseDto(contract.employee_id as any) // cast nếu cần
+        : null,
+    }));
+
+    return { data: mappedData, meta };
   }
 
   /**

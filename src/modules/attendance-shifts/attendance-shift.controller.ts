@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import AttendanceShiftService from "./attendance-shift.service";
 import { toAttendanceShiftResponseDto } from "./attendance-shift.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new AttendanceShiftService();
 
@@ -10,15 +11,19 @@ const service = new AttendanceShiftService();
  * Lấy danh sách ca làm việc
  */
 export const listAttendanceShifts = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toAttendanceShiftResponseDto),
+      {
+        items: result.data.map(toAttendanceShiftResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách ca làm việc thành công"
     );

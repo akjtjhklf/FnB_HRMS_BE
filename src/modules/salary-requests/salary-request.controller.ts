@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import SalaryRequestService from "./salary-request.service";
 import { toSalaryRequestResponseDto } from "./salary-request.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new SalaryRequestService();
 
@@ -10,15 +11,16 @@ const service = new SalaryRequestService();
  * Lấy danh sách yêu cầu tăng/điều chỉnh lương
  */
 export const listSalaryRequests = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toSalaryRequestResponseDto),
+      { items: data.data.map(toSalaryRequestResponseDto), ...data.meta },
       200,
       "Lấy danh sách yêu cầu lương thành công"
     );

@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { EmployeeAvailability } from "./employee-availability.model";
 import EmployeeAvailabilityRepository from "./employee-availability.repository";
 
@@ -11,6 +15,13 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
     return await this.repo.findAll(query);
   }
 
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<EmployeeAvailability>> {
+    return await (this.repo as EmployeeAvailabilityRepository).findAllPaginated(
+      query
+    );
+  }
   async get(id: string) {
     const item = await this.repo.findById(id);
     if (!item)
@@ -22,7 +33,7 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
     return item;
   }
 
-  async create(data: Partial<EmployeeAvailability>) {
+  async create(data: Partial<EmployeeAvailability> & { positions?: string[] }) {
     // kiểm tra trùng employee_id + shift_id nếu cần
     const existing = await this.repo.findAll({
       filter: {
@@ -37,7 +48,26 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
         "DUPLICATE_AVAILABILITY"
       );
 
-    return await this.repo.create(data);
+    // Extract positions array (nếu có)
+    const { positions, ...availabilityData } = data;
+
+    // Step 1: Tạo availability record
+    const availability = await this.repo.create(availabilityData);
+
+    // Step 2: Nếu có positions, tạo employee-availability-positions records
+    if (positions && positions.length > 0) {
+      const directusClient = (this.repo as any).directus;
+      
+      const positionRecords = positions.map((positionId, index) => ({
+        availability_id: availability.id,
+        position_id: positionId,
+        preference_order: index + 1
+      }));
+
+      await directusClient.items("employee_availability_positions").createMany(positionRecords);
+    }
+
+    return availability;
   }
 
   async update(id: string, data: Partial<EmployeeAvailability>) {
@@ -61,6 +91,14 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
         "EMPLOYEE_AVAILABILITY_NOT_FOUND"
       );
 
+    // Cascade delete: xóa employee_availability_positions
+    const directusClient = (this.repo as any).directus;
+    
+    await directusClient.items("employee_availability_positions").delete({
+      filter: { availability_id: { _eq: id } }
+    });
+    
+    // Cuối cùng xóa employee_availability
     await this.repo.delete(id);
   }
 }

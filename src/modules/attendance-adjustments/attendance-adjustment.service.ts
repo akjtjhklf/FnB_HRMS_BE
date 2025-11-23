@@ -32,6 +32,7 @@ export class AttendanceAdjustmentsService extends BaseService<AttendanceAdjustme
     const existing = await this.repo.findById(id);
     if (!existing)
       throw new HttpError(404, "Không tìm thấy bản ghi", "NOT_FOUND");
+    
     await this.repo.delete(id);
   }
 }

@@ -21,7 +21,7 @@ router.post(
   validateBody(createAttendanceAdjustmentSchema),
   createAttendanceAdjustment
 );
-router.put(
+router.patch(
   "/:id",
   validateBody(updateAttendanceAdjustmentSchema),
   updateAttendanceAdjustment

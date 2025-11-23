@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listEmployees);
 router.get("/:id", getEmployee);
 router.post("/", validateBody(createEmployeeSchema), createEmployee);
-router.put("/:id", validateBody(updateEmployeeSchema), updateEmployee);
+router.patch("/:id", validateBody(updateEmployeeSchema), updateEmployee);
 router.delete("/:id", deleteEmployee);
 
 export default router;

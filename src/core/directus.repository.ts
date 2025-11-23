@@ -17,6 +17,7 @@ import {
   buildSearchFilter,
   mergeFilters,
 } from "./dto/pagination.dto";
+import { getRelatedCollections } from "../config/relationships.config";
 
 /**
  * Generic repository làm việc với Directus SDK
@@ -39,8 +40,8 @@ export class DirectusRepository<
     query: PaginationQueryDto
   ): Promise<PaginatedResponse<T>> {
     try {
-      const page = Math.max(1, query.page || 1);
-      const limit = Math.min(Math.max(1, query.limit || 10), 100);
+      const page = Math.max(1, Number(query.page) || 1);
+      const limit = Math.max(1, Number(query.limit) || 10)
       const offset = (page - 1) * limit;
 
       // Build search filter
@@ -68,11 +69,25 @@ export class DirectusRepository<
 
       if (query.fields && query.fields.length > 0) {
         queryParams.fields = query.fields;
+        
+        // Auto-enable deep query for nested relations (e.g., "shift_type.*")
+        const hasNestedFields = query.fields.some(f => f.includes('.'));
+        if (hasNestedFields) {
+          queryParams.deep = {}; // Enable deep querying for all relations
+        }
       }
+
+      // Debug log
+      console.log(`🔍 [${this.collection}] Directus query params:`, JSON.stringify(queryParams, null, 2));
 
       // Fetch data
       const itemsReq: any = (readItems as any)(this.collection as any, queryParams);
       const items = await this.client.request(itemsReq);
+      
+      console.log(`✅ [${this.collection}] Retrieved ${items?.length || 0} items`);
+      if (items && items.length > 0) {
+        console.log(`📋 [${this.collection}] First item keys:`, Object.keys(items[0]));
+      }
 
       // Get total count - only with filter if it exists
       const countQueryParams: any = {
@@ -212,14 +227,105 @@ export class DirectusRepository<
     }
   }
 
+
+
   /**
-   * Xóa item
+   * Xóa cascade tất cả records liên quan đến item này (recursive)
+   */
+  private async deleteCascade(id: Identifier, depth: number = 0, visited: Set<string> = new Set()): Promise<void> {
+    // Prevent infinite loops - max depth 10
+    if (depth > 10) {
+      console.warn(`⚠️  Max cascade depth reached for ${this.collection}:${id}`);
+      return;
+    }
+
+    // Prevent circular references
+    const visitKey = `${this.collection}:${id}`;
+    if (visited.has(visitKey)) {
+      return;
+    }
+    visited.add(visitKey);
+
+    const relatedCollections = getRelatedCollections(this.collection);
+    
+    if (relatedCollections.length === 0) {
+      return; // No related collections, skip
+    }
+
+    const indent = '  '.repeat(depth);
+    if (depth === 0) {
+      console.log(`${indent}🗑️  Starting cascade delete for ${this.collection}:${id}`);
+    }
+
+    // Group by collection để deduplicate
+    const collectionGroups = new Map<string, string[]>();
+    
+    for (const { collection, field } of relatedCollections) {
+      if (!collectionGroups.has(collection)) {
+        collectionGroups.set(collection, []);
+      }
+      collectionGroups.get(collection)!.push(field);
+    }
+
+    // Xóa tất cả records liên quan trong từng collection
+    for (const [collection, fields] of collectionGroups) {
+      try {
+        // Build filter với OR cho tất cả các foreign key fields
+        const orFilters = fields.map(field => ({ [field]: { _eq: id } }));
+        const filter = orFilters.length > 1 ? { _or: orFilters } : orFilters[0];
+
+        // Tìm tất cả records có foreign key trỏ đến item này
+        const relatedItems: any = await this.client.request(
+          (readItems as any)(collection, {
+            filter,
+            fields: ['id'],
+            limit: -1,
+          })
+        );
+
+        if (relatedItems && relatedItems.length > 0) {
+          // Deduplicate IDs
+          const relatedIds = [...new Set(relatedItems.map((item: any) => item.id))];
+          console.log(`${indent}   → Deleting ${relatedIds.length} records from ${collection}`);
+          
+          // Tạo temporary repository cho collection này để xóa recursively
+          const childRepo = new DirectusRepository(collection, this.client);
+          
+          // Xóa cascade cho từng child record (recursive)
+          for (const childId of relatedIds) {
+            await childRepo.deleteCascade(childId as Identifier, depth + 1, visited);
+          }
+          
+          // Sau đó xóa tất cả child records
+          await this.client.request(
+            (deleteItems as any)(collection, relatedIds)
+          );
+        }
+      } catch (error: any) {
+        console.error(`${indent}   ❌ Failed to delete from ${collection}:`, error?.message || error);
+        if (error?.errors) {
+          console.error(`${indent}      Details:`, JSON.stringify(error.errors, null, 2));
+        }
+        // Continue with other collections even if one fails
+      }
+    }
+  }
+
+  /**
+   * Xóa item (với cascade delete tự động)
    */
   async delete(id: Identifier): Promise<void> {
     try {
+      // Xóa cascade các records liên quan trước
+      await this.deleteCascade(id);
+      
+      // Sau đó xóa record chính
       const deleteReq: any = (deleteItem as any)(this.collection as any, id);
       await this.client.request(deleteReq);
+      
+      console.log(`✅ Deleted ${this.collection}:${id} successfully`);
     } catch (error: any) {
+      console.error(`❌ Delete error for ${this.collection}:${id}:`, error);
       throw new HttpError(
         500,
         "Không thể xóa dữ liệu",
@@ -231,13 +337,51 @@ export class DirectusRepository<
 
   /**
    * Tạo nhiều items cùng lúc
+   * NOTE: Directus SDK v11 createItems() có bug - chỉ trả về 1 item
+   * Workaround: Loop tạo từng item một
    */
   async createMany(data: Partial<T>[]): Promise<T[]> {
     try {
-      const createManyReq: any = (createItems as any)(this.collection as any, data);
-      const created = await this.client.request(createManyReq);
-      return created as T[];
+      console.log(`📝 Creating ${data.length} items in ${this.collection}`);
+      console.log(`📋 First item sample:`, JSON.stringify(data[0], null, 2));
+      
+      // WORKAROUND: Directus SDK v11 createItems bug - use loop instead
+      const created: T[] = [];
+      for (let i = 0; i < data.length; i++) {
+        try {
+          const createReq: any = (createItem as any)(this.collection as any, data[i]);
+          const item = await this.client.request(createReq);
+          
+          if (!item) {
+            throw new Error(`Item ${i + 1} returned null/undefined`);
+          }
+          
+          created.push(item as T);
+          
+          // Log progress every 10 items or at start/end
+          if (i === 0 || i === data.length - 1 || (i + 1) % 10 === 0) {
+            console.log(`   ✅ Created ${i + 1}/${data.length} (ID: ${(item as any)?.id || 'NO ID'})`);
+          }
+          
+        } catch (itemError: any) {
+          console.error(`   ❌ Failed to create item ${i + 1}:`, itemError?.message || itemError);
+          console.error(`   📋 Failed item data:`, JSON.stringify(data[i], null, 2));
+          throw itemError; // Re-throw to stop batch
+        }
+      }
+      
+      console.log(`✅ Successfully created ${created.length} items in ${this.collection}`);
+      if (Array.isArray(created) && created.length > 0) {
+        console.log(`   First item: ${created[0]?.id || 'NO ID'}`);
+        console.log(`   Last item: ${created[created.length - 1]?.id || 'NO ID'}`);
+      }
+      
+      return created;
     } catch (error: any) {
+      console.error(`❌ Directus createMany error for ${this.collection}:`, error?.errors?.[0]?.message || error?.message);
+      if (error?.errors) {
+        console.error("   Full errors:", JSON.stringify(error.errors, null, 2));
+      }
       throw new HttpError(
         500,
         "Không thể tạo nhiều dữ liệu",
@@ -248,7 +392,7 @@ export class DirectusRepository<
   }
 
   /**
-   * Xóa nhiều items theo filter
+   * Xóa nhiều items theo filter (với cascade delete tự động)
    */
   async deleteMany(params: { filter?: Record<string, any> }): Promise<void> {
     try {
@@ -261,8 +405,19 @@ export class DirectusRepository<
       if (items.length === 0) return;
 
       const ids = items.map((item: any) => item.id);
+      
+      console.log(`🗑️  Deleting ${ids.length} items from ${this.collection} with cascade`);
+      
+      // Xóa cascade cho từng item
+      for (const id of ids) {
+        await this.deleteCascade(id);
+      }
+      
+      // Sau đó xóa tất cả records chính
       const deleteManyReq: any = (deleteItems as any)(this.collection as any, ids);
       await this.client.request(deleteManyReq);
+      
+      console.log(`✅ Deleted ${ids.length} items from ${this.collection} successfully`);
     } catch (error: any) {
       throw new HttpError(
         500,

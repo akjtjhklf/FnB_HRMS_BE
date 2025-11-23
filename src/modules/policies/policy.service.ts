@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { Policy } from "./policy.model";
 import PolicyRepository from "./policy.repository";
 
@@ -15,7 +19,11 @@ export class PolicyService extends BaseService<Policy> {
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
   }
-
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<Policy>> {
+    return await (this.repo as PolicyRepository).findAllPaginated(query);
+  }
   /**
    * Lấy chi tiết policy theo ID
    */

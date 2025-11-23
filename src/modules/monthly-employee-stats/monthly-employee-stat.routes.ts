@@ -17,7 +17,7 @@ const router = Router();
 router.get("/", listMonthlyEmployeeStats);
 router.get("/:id", getMonthlyEmployeeStat);
 router.post("/", validateBody(createMonthlyEmployeeStatSchema), createMonthlyEmployeeStat);
-router.put("/:id", validateBody(updateMonthlyEmployeeStatSchema), updateMonthlyEmployeeStat);
+router.patch("/:id", validateBody(updateMonthlyEmployeeStatSchema), updateMonthlyEmployeeStat);
 router.delete("/:id", deleteMonthlyEmployeeStat);
 
 export default router;

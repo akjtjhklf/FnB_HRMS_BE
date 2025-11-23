@@ -2,6 +2,10 @@ import { randomUUID } from "crypto";
 import { BaseService, HttpError } from "../../core/base";
 import { Deduction } from "./deduction.model";
 import DeductionRepository from "./deduction.repository";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 
 export class DeductionService extends BaseService<Deduction> {
   constructor(repo = new DeductionRepository()) {
@@ -10,6 +14,12 @@ export class DeductionService extends BaseService<Deduction> {
 
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<Deduction>> {
+    return await (this.repo as DeductionRepository).findAllPaginated(query);
   }
 
   async get(id: string) {

@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import ShiftTypeService from "./shift-type.service";
 import { toShiftTypeResponseDto } from "./shift-type.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new ShiftTypeService();
 
@@ -15,14 +16,14 @@ export const listShiftTypes = async (
   next: NextFunction
 ) => {
   try {
-    const result = await service.listPaginated(req.query);
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
     // Cast result to PaginatedResponse<ShiftType>
-    const paginated = result as import("../../core/directus.repository").PaginatedResponse<import("./shift-type.model").ShiftType>;
     return sendSuccess(
       res,
       {
-        items: paginated.data.map(toShiftTypeResponseDto),
-        meta: paginated.meta,
+        items: result.data.map(toShiftTypeResponseDto),
+        ...result.meta,
       },
       200,
       "Lấy danh sách ca làm việc thành công"
