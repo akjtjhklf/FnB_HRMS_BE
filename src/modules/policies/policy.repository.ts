@@ -171,6 +171,20 @@ export class PolicyRepository extends DirectusRepository<Policy> {
       );
     }
   }
+  /**
+   * Tìm policy theo tên
+   */
+  async findByName(name: string): Promise<Policy | null> {
+    const policies = await this.findAll({
+      filter: {
+        name: {
+          _eq: name,
+        },
+      },
+      limit: 1,
+    });
+    return policies[0] || null;
+  }
 }
 
 export default PolicyRepository;
