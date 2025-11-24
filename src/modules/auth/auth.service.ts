@@ -79,7 +79,7 @@ export class AuthService {
         try {
           // Lấy policies của role (Directus v11: role → policies là many-to-many)
           // Sử dụng directus_access table để lấy policy_id của role
-          const accessRecords = await userClient.request(
+          const accessData = await userClient.request(
             // FIX: Thêm tham số any thứ 3
             readItems<any, any, any>("directus_access", {
               filter: { role: { _eq: roleId } },
@@ -88,6 +88,7 @@ export class AuthService {
             })
           );
 
+          const accessRecords = accessData?.data || [];
           const policyIds =
             accessRecords?.map((a: any) => a.policy).filter(Boolean) || [];
 

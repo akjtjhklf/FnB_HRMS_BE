@@ -4,16 +4,18 @@ import {
   listEmployees,
   getEmployee,
   createEmployee,
+  createFullEmployee,
   updateEmployee,
   deleteEmployee,
 } from "./employee.controller";
-import { createEmployeeSchema, updateEmployeeSchema } from "./employee.dto";
+import { createEmployeeSchema, updateEmployeeSchema, createFullEmployeeSchema } from "./employee.dto";
 
 const router = Router();
 
 router.get("/", listEmployees);
 router.get("/:id", getEmployee);
 router.post("/", validateBody(createEmployeeSchema), createEmployee);
+router.post("/full", validateBody(createFullEmployeeSchema), createFullEmployee);
 router.patch("/:id", validateBody(updateEmployeeSchema), updateEmployee);
 router.delete("/:id", deleteEmployee);
 

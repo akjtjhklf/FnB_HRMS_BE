@@ -78,6 +78,27 @@ export const createEmployee = async (
 };
 
 /**
+ * Tạo nhân viên đầy đủ (User + Access + Employee + RFID)
+ */
+export const createFullEmployee = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const data = await service.createFull(req.body);
+    return sendSuccess(
+      res,
+      toEmployeeResponseDto(data),
+      201,
+      "Tạo nhân viên đầy đủ thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Cập nhật nhân viên
  */
 export const updateEmployee = async (
