@@ -6,10 +6,10 @@ import {
   PaginatedResponse,
 } from "../../core/dto/pagination.dto";
 import { CreateFullEmployeeDto } from "./employee.dto";
-import AccessService from "../access/access.service";
 import UserService from "../users/user.service";
 import { directus as DirectusClient } from "../../utils/directusClient";
-import { createUser, readUsers, createItem, deleteItem, readItems } from "@directus/sdk";
+import { createUser, readUsers, createItem, deleteItem, readItems, updateUser } from "@directus/sdk";
+import DirectusAccessService from "../../core/services/directus-access.service";
 
 export class EmployeeService extends BaseService<Employee> {
   constructor(repo = new EmployeeRepository()) {
@@ -88,13 +88,17 @@ export class EmployeeService extends BaseService<Employee> {
       const user = await DirectusClient.request(createUser(userPayload));
       createdUserId = user.id;
 
-      // 2. Assign Access
-      console.log("Assigning Access...");
-      await AccessService.assignAccess({
-        userId: createdUserId!,
-        roleId: data.roleId,
-        policyIds: data.policyIds
-      });
+      // 2. Assign Role to User (policies are inherited from role)
+      console.log("Assigning Role to User...");
+      await DirectusClient.request(updateUser(createdUserId!, {
+        role: data.roleId
+      }));
+
+      // 2.1 Assign Extra Policies (if any)
+      if (data.policyIds && data.policyIds.length > 0) {
+        console.log("Assigning Extra Policies to User...");
+        await DirectusAccessService.assignPoliciesToUser(createdUserId!, data.policyIds);
+      }
 
       // 3. Create Employee
       console.log("Creating Employee...");

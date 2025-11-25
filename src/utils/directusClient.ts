@@ -53,4 +53,19 @@ setInterval(async () => {
   }
 }, 10 * 60 * 1000); // Mỗi 10 phút
 
+/**
+ * Get the current auth token from the directus client
+ * This is needed for making raw HTTP requests to core collections
+ */
+export async function getAuthToken(): Promise<string | null> {
+  try {
+    // Access the internal storage where SDK keeps the token
+    const token = await directus.getToken();
+    return token;
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+    return null;
+  }
+}
+
 export { directus };
