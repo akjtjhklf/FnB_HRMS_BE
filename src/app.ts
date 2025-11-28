@@ -27,6 +27,7 @@ import shiftsRouter from "./modules/shifts/shift.routes";
 import shiftTypesRouter from "./modules/shift-types/shift-type.routes";
 import weeklyScheduleRouter from "./modules/weekly-schedule/weekly-schedule.routes";
 import attendanceShiftsRouter from "./modules/attendance-shifts/attendance-shift.routes";
+import attendanceRouter from "./modules/attendance-shifts/attendance.routes";  // ✅ NEW
 import attendanceLogsRouter from "./modules/attendance-logs/attendance-log.routes";
 import attendanceAdjustmentsRouter from "./modules/attendance-adjustments/attendance-adjustment.routes";
 import shiftPositionRequirementsRouter from "./modules/shift-position-requirements/shift-position-requirement.routes";
@@ -41,6 +42,10 @@ import scheduleChangeRequestsRouter from "./modules/schedule-change-requests/sch
 import devicesRouter from "./modules/devices/device.routes";
 import deviceEventsRouter from "./modules/device-events/device-events.routes";
 import rfidCardsRouter from "./modules/rfid-cards/rfid-card.routes";
+
+// ========== NOTIFICATIONS ==========
+import notificationsRouter from "./modules/notifications/notification.routes";
+import notificationLogsRouter from "./modules/notifications/notification-log.routes";
 
 // ========== FILE UPLOAD ==========
 import filesRouter from "./modules/files/file.routes";
@@ -92,6 +97,7 @@ app.use("/api/shifts", shiftsRouter);
 app.use("/api/shift-types", shiftTypesRouter);
 app.use("/api/weekly-schedules", weeklyScheduleRouter);
 app.use("/api/attendance-shifts", attendanceShiftsRouter);
+app.use("/api/attendance", attendanceRouter);  // ✅ NEW: Check-in/Check-out endpoints
 app.use("/api/attendance-logs", attendanceLogsRouter);
 app.use("/api/attendance-adjustments", attendanceAdjustmentsRouter);
 app.use("/api/shift-position-requirements", shiftPositionRequirementsRouter);
@@ -109,6 +115,10 @@ app.use("/api/schedule-change-requests", scheduleChangeRequestsRouter);
 app.use("/api/devices", devicesRouter);
 app.use("/api/device-events", deviceEventsRouter);
 app.use("/api/rfid-cards", rfidCardsRouter);
+
+// 🔔 Notifications
+app.use("/api/notifications", notificationsRouter);
+app.use("/api/notification-logs", notificationLogsRouter);
 
 // 🗂️ File Upload (Cloudinary + Directus)
 app.use("/api/files", filesRouter);

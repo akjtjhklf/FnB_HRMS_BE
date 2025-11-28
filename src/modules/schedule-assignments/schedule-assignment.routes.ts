@@ -14,22 +14,57 @@ import {
   updateScheduleAssignmentSchema,
   autoScheduleSchema,
 } from "./schedule-assignment.dto";
+import { requireAuth } from "../../middlewares/auth.middleware";
+import { checkPermission, loadIdentity } from "../../middlewares/permission.middleware";
 
 const router = Router();
 
 // ============================================
 // 🤖 AUTO SCHEDULE - XẾP LỊCH TỰ ĐỘNG
 // ============================================
-router.post("/auto-schedule", validateBody(autoScheduleSchema), autoSchedule);
-router.get("/schedule/:scheduleId/stats", getScheduleStats);
+// Only Manager/Admin can auto-schedule
+router.post(
+  "/auto-schedule",
+  requireAuth(),
+  checkPermission("create", "schedule_assignments"),
+  validateBody(autoScheduleSchema),
+  autoSchedule
+);
+router.get("/schedule/:scheduleId/stats", requireAuth(), getScheduleStats);
 
 // ============================================
 // CRUD ENDPOINTS
 // ============================================
-router.get("/", listScheduleAssignments);
-router.get("/:id", getScheduleAssignment);
-router.post("/", validateBody(createScheduleAssignmentSchema), createScheduleAssignment);
-router.patch("/:id", validateBody(updateScheduleAssignmentSchema), updateScheduleAssignment);
-router.delete("/:id", deleteScheduleAssignment);
+// GET /schedule-assignments - Everyone can read (filtered by identity in controller)
+router.get("/", requireAuth(), loadIdentity(), listScheduleAssignments);
+
+// GET /:id - Read single assignment
+router.get("/:id", requireAuth(), checkPermission("read", "schedule_assignments"), getScheduleAssignment);
+
+// POST / - Only Manager/Admin can create
+router.post(
+  "/",
+  requireAuth(),
+  checkPermission("create", "schedule_assignments"),
+  validateBody(createScheduleAssignmentSchema),
+  createScheduleAssignment
+);
+
+// PATCH /:id - Only Manager/Admin can update
+router.patch(
+  "/:id",
+  requireAuth(),
+  checkPermission("update", "schedule_assignments"),
+  validateBody(updateScheduleAssignmentSchema),
+  updateScheduleAssignment
+);
+
+// DELETE /:id - Only Manager/Admin can delete
+router.delete(
+  "/:id",
+  requireAuth(),
+  checkPermission("delete", "schedule_assignments"),
+  deleteScheduleAssignment
+);
 
 export default router;

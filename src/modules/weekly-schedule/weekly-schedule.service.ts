@@ -3,14 +3,28 @@ import { WeeklySchedule } from "./weekly-schedule.model";
 import WeeklyScheduleRepository from "./weekly-schedule.repository";
 import ShiftTypeRepository from "../shift-types/shift-type.repository";
 import ShiftRepository from "../shifts/shift.repository";
+import ShiftPositionRequirementRepository from "../shift-position-requirements/shift-position-requirement.repository";
+import ScheduleAssignmentRepository from "../schedule-assignments/schedule-assignment.repository";
+import EmployeeAvailabilityRepository from "../employee-availability/employee-availability.repository";
 import {
   PaginatedResponse,
   PaginationQueryDto,
 } from "../../core/dto/pagination.dto";
 
 export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
+  private shiftTypeRepo: ShiftTypeRepository;
+  private shiftRepo: ShiftRepository;
+  private requirementRepo: ShiftPositionRequirementRepository;
+  private assignmentRepo: ScheduleAssignmentRepository;
+  private availabilityRepo: EmployeeAvailabilityRepository;
+
   constructor(repo = new WeeklyScheduleRepository()) {
     super(repo);
+    this.shiftTypeRepo = new ShiftTypeRepository();
+    this.shiftRepo = new ShiftRepository();
+    this.requirementRepo = new ShiftPositionRequirementRepository();
+    this.assignmentRepo = new ScheduleAssignmentRepository();
+    this.availabilityRepo = new EmployeeAvailabilityRepository();
   }
 
   async list(query?: Record<string, unknown>, client?: any) {
@@ -248,17 +262,47 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
       throw new HttpError(404, "Không tìm thấy lịch tuần", "WEEKLY_SCHEDULE_NOT_FOUND");
     }
 
-    const shiftRepo = new ShiftRepository();
-    const shifts = await shiftRepo.findAll({
+    const shifts = await this.shiftRepo.findAll({
       filter: { schedule_id: { _eq: id } },
     });
 
-    const ShiftPositionRequirementRepository = require("../shift-position-requirements/shift-position-requirement.repository").default;
-    const ScheduleAssignmentRepository = require("../schedule-assignments/schedule-assignment.repository").default;
-    
-    const reqRepo = new ShiftPositionRequirementRepository();
-    const assignRepo = new ScheduleAssignmentRepository();
+    const shiftIds = shifts.map(s => s.id);
 
+    // ✅ OPTIMIZATION: Load all data upfront (2 queries instead of N*M)
+    const allRequirements = shiftIds.length > 0 
+      ? await this.requirementRepo.findAll({
+          filter: { shift_id: { _in: shiftIds } },
+        })
+      : [];
+
+    const allAssignments = shiftIds.length > 0
+      ? await this.assignmentRepo.findAll({
+          filter: {
+            shift_id: { _in: shiftIds },
+            status: { _nin: ["cancelled"] },
+          },
+        })
+      : [];
+
+    // Group by shift_id and position_id in memory
+    const requirementsByShift = new Map<string, any[]>();
+    for (const req of allRequirements) {
+      if (!requirementsByShift.has(req.shift_id)) {
+        requirementsByShift.set(req.shift_id, []);
+      }
+      requirementsByShift.get(req.shift_id)!.push(req);
+    }
+
+    const assignmentsByShiftAndPosition = new Map<string, any[]>();
+    for (const assign of allAssignments) {
+      const key = `${assign.shift_id}_${assign.position_id}`;
+      if (!assignmentsByShiftAndPosition.has(key)) {
+        assignmentsByShiftAndPosition.set(key, []);
+      }
+      assignmentsByShiftAndPosition.get(key)!.push(assign);
+    }
+
+    // Calculate issues
     const issues: Array<{
       shiftId: string;
       shiftDate: string;
@@ -272,19 +316,11 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
     let totalAssigned = 0;
 
     for (const shift of shifts) {
-      const reqs = await reqRepo.findAll({
-        filter: { shift_id: { _eq: shift.id } },
-      });
+      const reqs = requirementsByShift.get(shift.id) || [];
 
       for (const req of reqs) {
-        const assignments = await assignRepo.findAll({
-          filter: {
-            shift_id: { _eq: shift.id },
-            position_id: { _eq: req.position_id },
-            status: { _nin: ["cancelled"] },
-          },
-        });
-
+        const key = `${shift.id}_${req.position_id}`;
+        const assignments = assignmentsByShiftAndPosition.get(key) || [];
         const assignedCount = assignments.length;
         const requiredCount = req.required_count;
 
@@ -309,7 +345,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
 
     return {
       isReady,
-      canPublish: coverageRate >= 80, // Cho phép publish nếu đạt 80% coverage
+      canPublish: coverageRate >= 80,
       coverageRate: Math.round(coverageRate * 100) / 100,
       totalShifts: shifts.length,
       totalRequired,

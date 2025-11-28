@@ -65,7 +65,31 @@ export function requireAuth() {
         return next(new HttpError(401, "Invalid or expired token", "UNAUTHORIZED"));
       }
 
-      // Gắn user và client vào request để sử dụng sau này
+      // ✅ NEW: Lookup employee linked to this user
+      try {
+        const { readItems } = await import("@directus/sdk");
+        const employees: any[] = await userClient.request(
+          readItems("employees", {
+            filter: {
+              user_id: { _eq: currentUser.id }
+            },
+            limit: 1,
+          })
+        );
+
+        // Attach employee_id if found
+        if (employees && Array.isArray(employees) && employees.length > 0) {
+          (currentUser as any).employee_id = employees[0].id;
+          console.log("✅ Employee found:", employees[0].id);
+        } else {
+          console.log("⚠️ No employee linked to user:", currentUser.id);
+        }
+      } catch (empError) {
+        console.warn("Could not fetch employee:", empError);
+        // Continue anyway - some users may not be employees
+      }
+
+      // Attach user and client to request
       (req as any).user = currentUser;
       (req as any).directusClient = userClient;
 

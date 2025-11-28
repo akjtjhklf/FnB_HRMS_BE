@@ -1,21 +1,38 @@
 import { z } from "zod";
 import { ScheduleChangeRequest } from "./schedule-change-request.model";
 
-// ====== SCHEMAS ======
+// ====== ZOD SCHEMAS ======
 export const createScheduleChangeRequestSchema = z.object({
   requester_id: z.uuid(),
   type: z.enum(["shift_swap", "pass_shift", "day_off"]),
+  
+  // OLD fields
   from_shift_id: z.uuid().nullable().optional(),
   to_shift_id: z.uuid().nullable().optional(),
+  
+  // NEW fields
+  from_assignment_id: z.uuid().nullable().optional(),
+  to_assignment_id: z.uuid().nullable().optional(),
+  
   target_employee_id: z.uuid().nullable().optional(),
   replacement_employee_id: z.uuid().nullable().optional(),
   reason: z.string().nullable().optional(),
-  status: z
-    .enum(["pending", "approved", "rejected", "cancelled"])
-    .default("pending"),
+  status: z.enum(["pending", "approved", "rejected", "cancelled"]).default("pending"),
   approved_by: z.uuid().nullable().optional(),
   approved_at: z.date().nullable().optional(),
-});
+}).refine(
+  (data) => {
+    // If shift_swap, must have from_assignment_id
+    if (data.type === "shift_swap") {
+      return !!data.from_assignment_id;
+    }
+    return true;
+  },
+  {
+    message: "shift_swap type requires from_assignment_id",
+    path: ["from_assignment_id"],
+  }
+);
 
 export const updateScheduleChangeRequestSchema =
   createScheduleChangeRequestSchema.partial();
