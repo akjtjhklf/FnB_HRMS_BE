@@ -3,6 +3,7 @@ import { AttendanceShift } from "./attendance-shift.model";
 import AttendanceShiftRepository from "./attendance-shift.repository";
 import ScheduleAssignmentRepository from "../schedule-assignments/schedule-assignment.repository";
 import ShiftRepository from "../shifts/shift.repository";
+import EmployeeRepository from "../employees/employee.repository";
 
 /**
  * Attendance Service - Core business logic for check-in/check-out
@@ -12,15 +13,18 @@ import ShiftRepository from "../shifts/shift.repository";
  * - Automatic late/early leave calculation
  * - Working hours tracking
  * - Manual adjustments by admin
+ * - Monthly reporting
  */
 export class AttendanceService extends BaseService<AttendanceShift> {
   private assignmentRepo: ScheduleAssignmentRepository;
   private shiftRepo: ShiftRepository;
+  private employeeRepo: EmployeeRepository;
 
   constructor() {
     super(new AttendanceShiftRepository());
     this.assignmentRepo = new ScheduleAssignmentRepository();
     this.shiftRepo = new ShiftRepository();
+    this.employeeRepo = new EmployeeRepository();
   }
 
   /**
@@ -199,7 +203,7 @@ export class AttendanceService extends BaseService<AttendanceShift> {
   async manualAdjust(attendanceId: string, data: {
     clock_in?: string;
     clock_out?: string;
-    reason: string;
+    notes?: string;
   }) {
     const record = await this.repo.findById(attendanceId);
     if (!record) {
@@ -218,14 +222,79 @@ export class AttendanceService extends BaseService<AttendanceShift> {
       updates.clock_out = data.clock_out;
     }
 
+    if (data.notes) {
+      updates.notes = data.notes;
+    }
+
     // Recalculate worked minutes if both exist
     if (updates.clock_in && updates.clock_out) {
       const start = new Date(updates.clock_in);
       const end = new Date(updates.clock_out);
       updates.worked_minutes = Math.floor((end.getTime() - start.getTime()) / 1000 / 60);
+    } else if (updates.clock_in && record.clock_out) {
+        const start = new Date(updates.clock_in);
+        const end = new Date(record.clock_out);
+        updates.worked_minutes = Math.floor((end.getTime() - start.getTime()) / 1000 / 60);
+    } else if (record.clock_in && updates.clock_out) {
+        const start = new Date(record.clock_in);
+        const end = new Date(updates.clock_out);
+        updates.worked_minutes = Math.floor((end.getTime() - start.getTime()) / 1000 / 60);
     }
 
     return await this.repo.update(attendanceId, updates);
+  }
+
+  /**
+   * Get monthly attendance report for all employees
+   */
+  async getMonthlyReport(month: number, year: number) {
+    // Calculate start and end of month
+    const startDate = new Date(year, month - 1, 1).toISOString();
+    const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+
+    // 1. Fetch all active employees
+    const employees = await this.employeeRepo.findAll({
+      filter: { status: { _eq: "published" } }, // Assuming 'published' is active status in Directus
+      limit: 1000, // Fetch all
+    });
+
+    // 2. Fetch all attendance records for the month
+    const attendanceRecords = await this.repo.findAll({
+      filter: {
+        created_at: { _between: [startDate, endDate] },
+      },
+      limit: 10000, // Fetch all
+    });
+
+    // 3. Aggregate data per employee
+    const report = employees.map((employee) => {
+      const empRecords = attendanceRecords.filter((r) => r.employee_id === employee.id);
+
+      const totalWorkDays = empRecords.length;
+      const totalWorkMinutes = empRecords.reduce((sum, r) => sum + (r.worked_minutes || 0), 0);
+      const totalLateMinutes = empRecords.reduce((sum, r) => sum + (r.late_minutes || 0), 0);
+      const totalEarlyLeaveMinutes = empRecords.reduce((sum, r) => sum + (r.early_leave_minutes || 0), 0);
+
+      return {
+        id: employee.id,
+        employee: {
+          id: employee.id,
+          first_name: employee.first_name,
+          last_name: employee.last_name,
+          avatar: (employee as any).avatar,
+          department: (employee as any).department,
+        },
+        stats: {
+          total_work_days: totalWorkDays,
+          total_work_hours: parseFloat((totalWorkMinutes / 60).toFixed(1)),
+          total_late_minutes: totalLateMinutes,
+          total_early_leave_minutes: totalEarlyLeaveMinutes,
+        },
+        records: empRecords, // Include raw records for detail view if needed, or fetch separately
+      };
+    });
+
+    return report;
   }
 }
 

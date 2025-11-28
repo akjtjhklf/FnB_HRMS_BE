@@ -36,6 +36,7 @@ export abstract class BaseRepository<T extends { id?: Identifier }> {
 
   abstract findAll(query?: Record<string, unknown>): Promise<T[]>;
   abstract findById(id: Identifier): Promise<T | null>;
+  abstract findOne(params?: Record<string, unknown>): Promise<T | null>;
   abstract create(data: Partial<T>): Promise<T>;
   abstract update(id: Identifier, data: Partial<T>): Promise<T>;
   abstract delete(id: Identifier): Promise<void>;

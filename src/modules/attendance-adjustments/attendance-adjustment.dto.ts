@@ -5,8 +5,14 @@ export const createAttendanceAdjustmentSchema = z.object({
   attendance_shift_id: z.uuid(),
   requested_by: z.uuid().nullable().optional(),
   requested_at: z.string().nullable().optional(),
-  old_value: z.record(z.any(), z.any()).nullable().optional(),
-  proposed_value: z.record(z.any(), z.any()).nullable().optional(),
+  old_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable().optional(),
+  proposed_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable().optional(),
   approved_by: z.uuid().nullable().optional(),
   approved_at: z.string().nullable().optional(),
   status: z.enum(["pending", "approved", "rejected"]).default("pending"),
@@ -21,8 +27,14 @@ export const attendanceAdjustmentResponseSchema = z.object({
   attendance_shift_id: z.uuid(),
   requested_by: z.uuid().nullable(),
   requested_at: z.string().nullable(),
-  old_value: z.record(z.any(), z.any()).nullable(),
-  proposed_value: z.record(z.any(), z.any()).nullable(),
+  old_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable(),
+  proposed_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable(),
   approved_by: z.uuid().nullable(),
   approved_at: z.string().nullable(),
   status: z.enum(["pending", "approved", "rejected"]),
