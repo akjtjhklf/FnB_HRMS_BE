@@ -34,48 +34,90 @@ export class DirectusRepository<
   }
 
   /**
+   * Build pagination query params
+   */
+  protected buildPaginationQueryParams(query: PaginationQueryDto): any {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.max(1, Number(query.limit) || 10);
+    const offset = (page - 1) * limit;
+
+    // Build search filter
+    const searchFilter = buildSearchFilter(query.search, this.searchFields);
+    
+    // Merge custom filter with search filter
+    const finalFilter = mergeFilters(query.filter, searchFilter);
+
+    // Parse sort
+    const sort = parseSortParam(query.sort);
+
+    // Build query params - only include if they have values
+    const queryParams: any = {
+      limit,
+      offset,
+    };
+
+    if (finalFilter) {
+      queryParams.filter = finalFilter;
+    }
+
+    if (sort && sort.length > 0) {
+      queryParams.sort = sort;
+    }
+
+    if (query.fields && query.fields.length > 0) {
+      queryParams.fields = query.fields;
+      
+      // Auto-enable deep query for nested relations (e.g., "shift_type.*")
+      const hasNestedFields = query.fields.some(f => f.includes('.'));
+      if (hasNestedFields) {
+        queryParams.deep = {}; // Enable deep querying for all relations
+      }
+    }
+
+    return { queryParams, page, limit, finalFilter };
+  }
+
+  /**
+   * Build standard query params
+   */
+  protected buildQueryParams(params?: {
+    filter?: Record<string, any>;
+    fields?: string[];
+    sort?: string[];
+    limit?: number;
+  }): any {
+    // Build query params - only include defined values
+    const queryParams: any = {};
+    
+    if (params?.limit !== undefined) {
+      queryParams.limit = params.limit;
+    } else {
+      queryParams.limit = -1; // Get all by default
+    }
+    
+    if (params?.filter) {
+      queryParams.filter = params.filter;
+    }
+    
+    if (params?.fields && params.fields.length > 0) {
+      queryParams.fields = params.fields;
+    }
+    
+    if (params?.sort && params.sort.length > 0) {
+      queryParams.sort = params.sort;
+    }
+
+    return queryParams;
+  }
+
+  /**
    * Lấy danh sách có phân trang, filter, sort, search
    */
   async findAllPaginated(
     query: PaginationQueryDto
   ): Promise<PaginatedResponse<T>> {
     try {
-      const page = Math.max(1, Number(query.page) || 1);
-      const limit = Math.max(1, Number(query.limit) || 10)
-      const offset = (page - 1) * limit;
-
-      // Build search filter
-      const searchFilter = buildSearchFilter(query.search, this.searchFields);
-      
-      // Merge custom filter with search filter
-      const finalFilter = mergeFilters(query.filter, searchFilter);
-
-      // Parse sort
-      const sort = parseSortParam(query.sort);
-
-      // Build query params - only include if they have values
-      const queryParams: any = {
-        limit,
-        offset,
-      };
-
-      if (finalFilter) {
-        queryParams.filter = finalFilter;
-      }
-
-      if (sort && sort.length > 0) {
-        queryParams.sort = sort;
-      }
-
-      if (query.fields && query.fields.length > 0) {
-        queryParams.fields = query.fields;
-        
-        // Auto-enable deep query for nested relations (e.g., "shift_type.*")
-        const hasNestedFields = query.fields.some(f => f.includes('.'));
-        if (hasNestedFields) {
-          queryParams.deep = {}; // Enable deep querying for all relations
-        }
-      }
+      const { queryParams, page, limit, finalFilter } = this.buildPaginationQueryParams(query);
 
       // Debug log
       console.log(`🔍 [${this.collection}] Directus query params:`, JSON.stringify(queryParams, null, 2));
@@ -135,26 +177,7 @@ export class DirectusRepository<
     limit?: number;
   }): Promise<T[]> {
     try {
-      // Build query params - only include defined values
-      const queryParams: any = {};
-      
-      if (params?.limit !== undefined) {
-        queryParams.limit = params.limit;
-      } else {
-        queryParams.limit = -1; // Get all by default
-      }
-      
-      if (params?.filter) {
-        queryParams.filter = params.filter;
-      }
-      
-      if (params?.fields && params.fields.length > 0) {
-        queryParams.fields = params.fields;
-      }
-      
-      if (params?.sort && params.sort.length > 0) {
-        queryParams.sort = params.sort;
-      }
+      const queryParams = this.buildQueryParams(params);
 
       const resultReq: any = (readItems as any)(this.collection as any, queryParams);
       const result = await this.client.request(resultReq);

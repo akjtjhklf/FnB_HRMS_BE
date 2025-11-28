@@ -24,10 +24,10 @@ export async function ensureAuth() {
       throw new Error('DIRECTUS_EMAIL or DIRECTUS_PASSWORD is not defined');
     }
 
-    await directus.login(
-      process.env.DIRECTUS_EMAIL,
-      process.env.DIRECTUS_PASSWORD
-    );
+    await directus.login({
+      email: process.env.DIRECTUS_EMAIL,
+      password: process.env.DIRECTUS_PASSWORD
+    });
     
     isAuthenticated = true;
     console.log('✅ Authenticated with Directus as:', process.env.DIRECTUS_EMAIL);
@@ -52,5 +52,20 @@ setInterval(async () => {
     }
   }
 }, 10 * 60 * 1000); // Mỗi 10 phút
+
+/**
+ * Get the current auth token from the directus client
+ * This is needed for making raw HTTP requests to core collections
+ */
+export async function getAuthToken(): Promise<string | null> {
+  try {
+    // Access the internal storage where SDK keeps the token
+    const token = await directus.getToken();
+    return token;
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+    return null;
+  }
+}
 
 export { directus };

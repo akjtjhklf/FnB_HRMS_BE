@@ -16,8 +16,17 @@ export class ShiftService extends BaseService<Shift> {
     // Ensure fields are properly passed to repository for relation population
     if (!query.fields || query.fields.length === 0) {
       // Default: include all shift fields + shift_type relation
-      // Note: Directus uses the foreign key name for relations (shift_type_id not shift_type)
-      query.fields = ['*', 'shift_type_id.*'];
+      // In Directus, we specify the foreign key field followed by the nested fields to expand the relation
+      query.fields = [
+        '*', 
+        'shift_type_id.id',
+        'shift_type_id.name', 
+        'shift_type_id.start_time',
+        'shift_type_id.end_time',
+        'shift_type_id.color',
+        'shift_type_id.cross_midnight',
+        'shift_type_id.code'
+      ];
     }
     return await (this.repo as ShiftRepository).findAllPaginated(query);
   }

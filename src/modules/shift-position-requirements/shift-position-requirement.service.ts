@@ -14,9 +14,19 @@ export class ShiftPositionRequirementService extends BaseService<ShiftPositionRe
     return await this.repo.findAll(query as any);
   }
 
-   async listPaginated(
+  async listPaginated(
     query: PaginationQueryDto
   ): Promise<PaginatedResponse<ShiftPositionRequirement>> {
+    // Ensure position relation is populated if not explicitly requested
+    if (!query.fields || query.fields.length === 0) {
+      query.fields = [
+        '*', 
+        'position_id.id',
+        'position_id.name',
+        'position_id.code',
+        'position_id.description'
+      ];
+    }
     return await (
       this.repo as ShiftPositionRequirementRepository
     ).findAllPaginated(query);

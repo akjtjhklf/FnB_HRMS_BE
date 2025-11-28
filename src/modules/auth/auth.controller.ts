@@ -13,7 +13,7 @@ export const login = async (
   const { email, password } = req.body;
 
   try {
-    const response = await directus.login(email, password);
+    const response = await directus.login({ email, password });
 
     // SDK mới trả về token trực tiếp
     const token = response.access_token;

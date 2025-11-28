@@ -79,9 +79,17 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
       );
     }
 
-    // Nếu là yêu cầu đổi ca, thực hiện swap
+    // ✅ FIX: Check new fields instead of non-existent properties
     let swapResult = null;
-    if (request.type === "shift_swap" && request.to_assignment_id) {
+    if (request.type === "shift_swap") {
+      if (!request.from_assignment_id || !request.to_assignment_id) {
+        throw new HttpError(
+          400,
+          "Thiếu thông tin assignment để hoán đổi",
+          "MISSING_ASSIGNMENT_IDS"
+        );
+      }
+      
       swapResult = await this.swapAssignments(
         request.from_assignment_id,
         request.to_assignment_id

@@ -25,6 +25,8 @@ export const createUserSchema = z.object({
   theme_dark_overrides: z.record(z.any(), z.any()).optional().nullable(),
   theme_light_overrides: z.record(z.any(), z.any()).optional().nullable(),
   text_direction: z.string().optional().nullable(),
+  // Policies assigned directly to user (via directus_access)
+  policies: z.array(z.any()).optional(),
 });
 
 export const updateUserSchema = createUserSchema.partial();
@@ -52,6 +54,7 @@ export const userResponseSchema = z.object({
   created_at: z.string().nullable(),
   updated_at: z.string().nullable(),
   employee_id: z.string().nullable(),
+  policies: z.array(z.any()).optional(), // Direct policies via directus_access
 });
 
 // ====== TYPES ======
@@ -77,4 +80,5 @@ export const toUserResponseDto = (entity: User): UserResponseDto => ({
   created_at: entity.created_at ?? null,
   updated_at: entity.updated_at ?? null,
   employee_id: entity.employee_id ?? null,
+  policies: (entity as any).policies,
 });

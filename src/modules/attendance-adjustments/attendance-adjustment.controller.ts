@@ -95,3 +95,43 @@ export const deleteAttendanceAdjustment = async (
     next(err);
   }
 };
+
+export const approveAttendanceAdjustment = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const managerId = (req as any).user?.id;
+    const data = await service.approve(id, managerId);
+    return sendSuccess(
+      res,
+      toAttendanceAdjustmentResponseDto(data),
+      200,
+      "Duyệt yêu cầu điều chỉnh thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const rejectAttendanceAdjustment = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const managerId = (req as any).user?.id;
+    const data = await service.reject(id, managerId);
+    return sendSuccess(
+      res,
+      toAttendanceAdjustmentResponseDto(data),
+      200,
+      "Từ chối yêu cầu điều chỉnh thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};

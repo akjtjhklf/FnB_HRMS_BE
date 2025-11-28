@@ -1,3 +1,5 @@
+import { BaseService } from "../../core/base";
+import { randomUUID } from "crypto";
 import { DirectusRepository } from "../../core/directus.repository";
 import {
   Employee,
@@ -254,7 +256,7 @@ export class AutoSchedulerService {
 
           // Tạo assignment
           assignments.push({
-            id: this.generateUUID(),
+            id: randomUUID(),  // ✅ IMPROVED: Use crypto.randomUUID()
             schedule_id: scheduleId,
             shift_id: shift.id,
             employee_id: scoreData.employeeId,
@@ -609,11 +611,5 @@ export class AutoSchedulerService {
     }).filter(e => e.availabilities.length > 0); // Chỉ lấy employees có availability
   }
 
-  private generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  }
+  // ✅ REMOVED: Custom UUID generator replaced with crypto.randomUUID()
 }

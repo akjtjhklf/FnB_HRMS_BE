@@ -15,6 +15,7 @@ import {
   debugDirectusAccess,
 } from "./weekly-schedule.controller";
 import { requireAuth } from "../../middlewares/auth.middleware";
+import { checkPermission } from "../../middlewares/permission.middleware";
 import {
   createWeeklyScheduleSchema,
   updateWeeklyScheduleSchema,
@@ -52,7 +53,12 @@ router.get("/", requireAuth(), listWeeklySchedules);
  *       201:
  *         description: Tạo thành công
  */
-router.post("/with-shifts", requireAuth(), createWeeklyScheduleWithShiftsHandler);
+router.post(
+  "/with-shifts",
+  requireAuth(),
+  checkPermission("create", "weekly_schedule"),
+  createWeeklyScheduleWithShiftsHandler
+);
 
 /**
  * @swagger
@@ -93,6 +99,8 @@ router.get("/:id", requireAuth(), getWeeklySchedule);
  */
 router.post(
   "/",
+  requireAuth(),
+  checkPermission("create", "weekly_schedule"),
   validateBody(createWeeklyScheduleSchema),
   createWeeklySchedule
 );
@@ -124,6 +132,8 @@ router.post(
  */
 router.patch(
   "/:id",
+  requireAuth(),
+  checkPermission("update", "weekly_schedule"),
   validateBody(updateWeeklyScheduleSchema),
   updateWeeklySchedule
 );
@@ -147,7 +157,12 @@ router.patch(
  *       404:
  *         description: Không tìm thấy
  */
-router.delete("/:id", deleteWeeklySchedule);
+router.delete(
+  "/:id",
+  requireAuth(),
+  checkPermission("delete", "weekly_schedule"),
+  deleteWeeklySchedule
+);
 
 /**
  * @swagger
@@ -170,7 +185,12 @@ router.delete("/:id", deleteWeeklySchedule);
  *       404:
  *         description: Không tìm thấy
  */
-router.patch("/:id/publish", requireAuth(), publishWeeklySchedule);
+router.patch(
+  "/:id/publish",
+  requireAuth(),
+  checkPermission("update", "weekly_schedule"),
+  publishWeeklySchedule
+);
 
 /**
  * @swagger
@@ -193,7 +213,12 @@ router.patch("/:id/publish", requireAuth(), publishWeeklySchedule);
  *       404:
  *         description: Không tìm thấy
  */
-router.patch("/:id/finalize", requireAuth(), finalizeWeeklySchedule);
+router.patch(
+  "/:id/finalize",
+  requireAuth(),
+  checkPermission("update", "weekly_schedule"),
+  finalizeWeeklySchedule
+);
 
 /**
  * @swagger

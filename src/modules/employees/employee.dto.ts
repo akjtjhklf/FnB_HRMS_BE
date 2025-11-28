@@ -42,6 +42,32 @@ export type CreateEmployeeDto = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeDto = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeResponseDto = z.infer<typeof employeeResponseSchema>;
 
+// --- Full Creation DTO ---
+export const createFullEmployeeSchema = z.object({
+  // Step 1: User & Access
+  email: z.string().email(),
+  password: z.string().optional(),
+  roleId: z.string().uuid(),
+  policyIds: z.array(z.string().uuid()).default([]),
+
+  // Step 2: Employee Info
+  employee_code: z.string().min(1),
+  first_name: z.string().min(1),
+  last_name: z.string().min(1),
+  dob: z.string().optional(),
+  gender: z.enum(["male", "female", "other"]).optional(),
+  phone: z.string().optional(),
+  department_id: z.string().optional(), // Assuming we might add this
+  position_id: z.string().optional(), // Assuming we might add this
+  // ... other employee fields can be passed as needed, expanding createEmployeeSchema if necessary
+  // For now we'll stick to the core fields + what's in createEmployeeSchema
+  
+  // Step 3: RFID
+  rfidCode: z.string().optional(),
+}).merge(createEmployeeSchema.omit({ user_id: true, email: true })); // Merge with base employee schema, omitting user_id as it's generated
+
+export type CreateFullEmployeeDto = z.infer<typeof createFullEmployeeSchema>;
+
 // Mapper
 import { UserResponseDto, toUserResponseDto } from "../users/user.dto"; // giả sử bạn có DTO user/role
 

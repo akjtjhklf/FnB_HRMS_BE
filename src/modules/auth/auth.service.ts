@@ -1,5 +1,5 @@
 import { directus } from "../../utils/directusClient";
-import { readMe, readItems } from "@directus/sdk";
+import { readMe, readItems, readPolicy, readPermissions } from "@directus/sdk";
 import {
   UserIdentityDto,
   RoleWithPermissions,
@@ -79,15 +79,32 @@ export class AuthService {
         try {
           // Lấy policies của role (Directus v11: role → policies là many-to-many)
           // Sử dụng directus_access table để lấy policy_id của role
-          const accessRecords = await userClient.request(
-            // FIX: Thêm tham số any thứ 3
-            readItems<any, any, any>("directus_access", {
-              filter: { role: { _eq: roleId } },
-              fields: ["policy"] as any,
-              limit: -1,
-            })
-          );
+          // Use fetch instead of readItems for core collection
+          const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+          const token = await userClient.getToken();
+          
+          if (!token) {
+            throw new Error('No authentication token available');
+          }
 
+          const url = new URL(`${directusUrl}/access`);
+          url.searchParams.append('filter', JSON.stringify({ role: { _eq: roleId } }));
+          url.searchParams.append('fields', 'policy');
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+          }
+
+          const accessData = await response.json();
+
+          const accessRecords = accessData?.data || [];
           const policyIds =
             accessRecords?.map((a: any) => a.policy).filter(Boolean) || [];
 
@@ -96,29 +113,24 @@ export class AuthService {
 
           for (const policyId of policyIds) {
             try {
-              // Lấy policy info
-              const policies = await userClient.request(
-                // FIX: Thêm tham số any thứ 3
-                readItems<any, any, any>("directus_policies", {
-                  filter: { id: { _eq: policyId } },
-                  fields: ["*"] as any,
-                  limit: 1,
+              // Use SDK method for policies - readPolicy is supported
+              const policy = await userClient.request(
+                readPolicy(policyId, {
+                  fields: ['*'],
                 })
               );
-
-              const policy = policies?.[0];
+              
               if (!policy) continue;
 
               // Check admin access
               if (policy.admin_access) isAdmin = true;
               if (policy.app_access) canAccessApp = true;
 
-              // Lấy permissions của policy
+              // Use SDK method for permissions - readPermissions is supported
               const permissions = await userClient.request(
-                // FIX: Thêm tham số any thứ 3
-                readItems<any, any, any>("directus_permissions", {
+                readPermissions({
                   filter: { policy: { _eq: policyId } },
-                  fields: ["*"] as any,
+                  fields: ['*'],
                   limit: -1,
                 })
               );
@@ -146,6 +158,60 @@ export class AuthService {
           console.error("❌ Error fetching role policies:", error);
           roleWithPermissions = user.role as RoleWithPermissions;
         }
+      }
+
+      // 4. Lấy policies assigned directly cho User (nếu có)
+      try {
+        const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+        const token = await userClient.getToken();
+        
+        if (token) {
+          const url = new URL(`${directusUrl}/access`);
+          url.searchParams.append('filter', JSON.stringify({ user: { _eq: user.id } }));
+          url.searchParams.append('fields', 'policy');
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (response.ok) {
+            const accessData = await response.json();
+            const accessRecords = accessData?.data || [];
+            const userPolicyIds = accessRecords?.map((a: any) => a.policy).filter(Boolean) || [];
+
+            for (const policyId of userPolicyIds) {
+              try {
+                const policy = await userClient.request(
+                  readPolicy(policyId, { fields: ['*'] })
+                );
+                
+                if (!policy) continue;
+
+                if (policy.admin_access) isAdmin = true;
+                if (policy.app_access) canAccessApp = true;
+
+                const permissions = await userClient.request(
+                  readPermissions({
+                    filter: { policy: { _eq: policyId } },
+                    fields: ['*'],
+                    limit: -1,
+                  })
+                );
+
+                if (permissions) {
+                  allPermissions.push(...permissions);
+                }
+              } catch (error) {
+                console.error(`❌ Error fetching user policy ${policyId}:`, error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("❌ Error fetching user policies:", error);
       }
 
       // 4. Tạo display name
