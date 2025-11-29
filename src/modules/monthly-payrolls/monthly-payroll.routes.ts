@@ -8,6 +8,9 @@ import {
   deleteMonthlyPayroll,
   approveMonthlyPayroll,
   markMonthlyPayrollAsPaid,
+  generateMonthlyPayroll,
+  lockMonthlyPayroll,
+  unlockMonthlyPayroll,
 } from "./monthly-payroll.controller";
 import {
   createMonthlyPayrollSchema,
@@ -16,6 +19,8 @@ import {
 
 const router = Router();
 
+router.post("/generate", generateMonthlyPayroll); // Generate first
+
 router.get("/", listMonthlyPayrolls);
 router.get("/:id", getMonthlyPayroll);
 router.post("/", validateBody(createMonthlyPayrollSchema), createMonthlyPayroll);
@@ -23,5 +28,7 @@ router.patch("/:id", validateBody(updateMonthlyPayrollSchema), updateMonthlyPayr
 router.delete("/:id", deleteMonthlyPayroll);
 router.post("/:id/approve", approveMonthlyPayroll);
 router.post("/:id/mark-paid", markMonthlyPayrollAsPaid);
+router.put("/:id/lock", lockMonthlyPayroll);
+router.put("/:id/unlock", unlockMonthlyPayroll);
 
 export default router;

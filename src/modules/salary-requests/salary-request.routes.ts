@@ -6,6 +6,8 @@ import {
   getSalaryRequest,
   listSalaryRequests,
   updateSalaryRequest,
+  approveSalaryRequest,
+  rejectSalaryRequest,
 } from "./salary-request.controller";
 import {
   createSalaryRequestSchema,
@@ -23,5 +25,7 @@ router.patch(
   updateSalaryRequest
 );
 router.delete("/:id", deleteSalaryRequest);
+router.post("/:id/approve", approveSalaryRequest);
+router.post("/:id/reject", rejectSalaryRequest);
 
 export default router;

@@ -7,8 +7,8 @@ import {
 } from "../../core/dto/pagination.dto";
 import { CreateFullEmployeeDto } from "./employee.dto";
 import UserService from "../users/user.service";
-import { directus as DirectusClient } from "../../utils/directusClient";
-import { createUser, readUsers, createItem, deleteItem, readItems, updateUser } from "@directus/sdk";
+import { directus as DirectusClient, getAuthToken } from "../../utils/directusClient";
+import { createUser, readUsers, createItem, deleteItem, deleteItems, readItems, updateUser, updateItem } from "@directus/sdk";
 import DirectusAccessService from "../../core/services/directus-access.service";
 
 export class EmployeeService extends BaseService<Employee> {
@@ -30,18 +30,108 @@ export class EmployeeService extends BaseService<Employee> {
     return await (this.repo as EmployeeRepository).findAllWithUserRole(query);
   }
 
-  /** Lấy 1 employee theo ID kèm user + role */
-  async get(id: string | number) {
-    const employee = await (
-      this.repo as EmployeeRepository
-    ).findAllWithUserRole({ id: { _eq: id } });
-    if (!employee?.[0])
+  /** Lấy 1 employee theo ID kèm user + role + policies */
+  async get(id: string | number): Promise<Employee> {
+    // Use readItems directly to ensure we get exactly what we want
+    const employees = await DirectusClient.request(readItems('employees' as any, {
+        filter: { id: { _eq: id } },
+        fields: [
+            '*',
+            'user.*',
+            'user.role.*',
+            'user.policies.*' // Try to fetch policies directly if possible, though usually it's via directus_access
+        ]
+    }));
+    
+    if (!employees || employees.length === 0)
       throw new HttpError(
         404,
         "Không tìm thấy nhân viên",
         "EMPLOYEE_NOT_FOUND"
       );
-    return employee[0];
+      
+    const emp = employees[0] as Employee;
+    
+    // If user is just an ID (expansion failed), try to fetch user separately
+    if (emp.user && typeof emp.user === 'string') {
+        try {
+            const user = await DirectusClient.request(readUsers({
+                filter: { id: { _eq: emp.user } },
+                fields: ['*', 'role.*']
+            }));
+            if (user && user.length > 0) {
+                emp.user = user[0] as any;
+            }
+        } catch (e) {
+            console.error("Failed to fetch user details", e);
+        }
+    } else if (emp.user_id && !emp.user) {
+         // If user_id exists but user is missing
+         try {
+            const user = await DirectusClient.request(readUsers({
+                filter: { id: { _eq: emp.user_id } },
+                fields: ['*', 'role.*']
+            }));
+            if (user && user.length > 0) {
+                emp.user = user[0] as any;
+            }
+        } catch (e) {
+            console.error("Failed to fetch user details from user_id", e);
+        }
+    }
+    
+    // Fetch policies if user exists
+    if (emp.user && typeof emp.user === 'object' && emp.user.id) {
+      try {
+        const policies = await DirectusAccessService.getUserPolicies(emp.user.id);
+        (emp.user as any).policies = policies;
+      } catch (error) {
+        console.error("Error fetching user policies:", error);
+        (emp.user as any).policies = [];
+      }
+    }
+
+    // Fetch RFID cards using raw fetch to avoid permission issues with SDK
+    try {
+      const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+      const token = await getAuthToken();
+      
+      if (token) {
+          const url = new URL(`${directusUrl}/items/rfid_cards`);
+          url.searchParams.append('filter', JSON.stringify({ 
+              employee_id: { _eq: id }, 
+              status: { _eq: 'active' } 
+          }));
+          url.searchParams.append('fields', 'card_number,status');
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+              const result = await response.json();
+              (emp as any).rfid_cards = result.data;
+          } else {
+              console.warn("Failed to fetch RFID cards via raw fetch", await response.text());
+              (emp as any).rfid_cards = [];
+          }
+      } else {
+           // Fallback to SDK if no token (shouldn't happen if authenticated)
+           const rfidCards = await DirectusClient.request(readItems('rfid_cards' as any, {
+                filter: { employee_id: { _eq: id }, status: { _eq: 'active' } },
+                fields: ['card_number', 'status']
+           }));
+           (emp as any).rfid_cards = rfidCards;
+      }
+    } catch (error) {
+      console.error("Error fetching RFID cards:", error);
+      (emp as any).rfid_cards = [];
+    }
+    
+    return emp;
   }
 
   async create(data: Partial<Employee>) {
@@ -172,6 +262,93 @@ export class EmployeeService extends BaseService<Employee> {
       );
 
     return await this.repo.update(id, data);
+  }
+
+  /**
+   * Update Full Employee (Employee -> User -> Access -> RFID)
+   */
+  async updateFull(id: string, data: Partial<CreateFullEmployeeDto>) {
+    const employee = await this.get(id);
+    if (!employee) throw new HttpError(404, "Employee not found", "EMPLOYEE_NOT_FOUND");
+
+    try {
+      // 1. Update Employee Basic Info
+      const employeePayload = { ...data };
+      // Remove non-employee fields
+      delete (employeePayload as any).email;
+      delete (employeePayload as any).password;
+      delete (employeePayload as any).roleId;
+      delete (employeePayload as any).policyIds;
+      delete (employeePayload as any).rfidCode;
+
+      await this.repo.update(id, employeePayload);
+
+      // 2. Update User Info (if user exists)
+      if (employee.user && employee.user.id) {
+        const userUpdates: any = {};
+        if (data.email) userUpdates.email = data.email;
+        if (data.roleId) userUpdates.role = data.roleId;
+        if (data.password) userUpdates.password = data.password;
+        
+        if (Object.keys(userUpdates).length > 0) {
+           await DirectusClient.request(updateUser(employee.user.id, userUpdates));
+        }
+
+        // Update Policies
+        if (data.policyIds) {
+           await DirectusAccessService.replaceUserPolicies(employee.user.id, data.policyIds);
+        }
+      }
+
+      // 3. Update RFID
+      if (data.rfidCode !== undefined) {
+          // Find existing active RFID
+          const existingRfids = (employee as any).rfid_cards || [];
+          const currentActive = existingRfids.find((c: any) => c.status === 'active');
+
+          if (data.rfidCode) {
+              // If new code is different from current active
+              if (!currentActive || currentActive.card_number !== data.rfidCode) {
+                  // Deactivate old one
+                  if (currentActive) {
+                      await DirectusClient.request(updateItem('rfid_cards' as any, currentActive.id, { status: 'inactive' }));
+                  }
+                  
+                  // Check if new code exists
+                  const codeExists = await DirectusClient.request(readItems('rfid_cards' as any, {
+                      filter: { card_number: { _eq: data.rfidCode } }
+                  }));
+                  
+                  if (codeExists && codeExists.length > 0) {
+                      const target = codeExists[0];
+                      if (target.status === 'active' && target.employee_id !== id) {
+                          throw new HttpError(409, "RFID Code already used by another employee", "RFID_CONFLICT");
+                      }
+                      // Update to active and assign to this employee
+                      await DirectusClient.request(updateItem('rfid_cards' as any, target.id, { status: 'active', employee_id: id }));
+                  } else {
+                      // Create new
+                      await DirectusClient.request(createItem('rfid_cards' as any, {
+                          card_number: data.rfidCode,
+                          employee_id: id,
+                          status: 'active'
+                      }));
+                  }
+              }
+          } else {
+              // If empty code provided, deactivate current active
+              if (currentActive) {
+                  await DirectusClient.request(updateItem('rfid_cards' as any, currentActive.id, { status: 'inactive' }));
+              }
+          }
+      }
+      
+      return await this.get(id);
+
+    } catch (error) {
+      console.error("Update Full Employee Failed", error);
+      throw error;
+    }
   }
 
   // remove() method được kế thừa từ BaseService với cascade delete tự động

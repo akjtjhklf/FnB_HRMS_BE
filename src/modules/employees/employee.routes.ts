@@ -5,6 +5,7 @@ import {
   getEmployee,
   createEmployee,
   createFullEmployee,
+  updateFullEmployee,
   updateEmployee,
   deleteEmployee,
 } from "./employee.controller";
@@ -16,6 +17,7 @@ router.get("/", listEmployees);
 router.get("/:id", getEmployee);
 router.post("/", validateBody(createEmployeeSchema), createEmployee);
 router.post("/full", validateBody(createFullEmployeeSchema), createFullEmployee);
+router.patch("/:id/full", validateBody(createFullEmployeeSchema.partial()), updateFullEmployee);
 router.patch("/:id", validateBody(updateEmployeeSchema), updateEmployee);
 router.delete("/:id", deleteEmployee);
 

@@ -149,3 +149,72 @@ export const markMonthlyPayrollAsPaid = async (
     next(err);
   }
 };
+
+/**
+ * Generate payroll for a month
+ */
+export const generateMonthlyPayroll = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { month, employee_ids } = req.body;
+    if (!month) {
+      throw new Error("Month is required (YYYY-MM)");
+    }
+    
+    const result = await service.generatePayroll(month, employee_ids);
+    
+    return sendSuccess(
+      res,
+      result,
+      201,
+      "Tạo bảng lương thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Lock payroll (set to pending_approval)
+ */
+export const lockMonthlyPayroll = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const data = await service.lock(req.params.id);
+    return sendSuccess(
+      res,
+      toMonthlyPayrollResponseDto(data),
+      200,
+      "Khóa bảng lương thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Unlock payroll (set to draft)
+ */
+export const unlockMonthlyPayroll = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const data = await service.unlock(req.params.id);
+    return sendSuccess(
+      res,
+      toMonthlyPayrollResponseDto(data),
+      200,
+      "Mở khóa bảng lương thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};

@@ -443,6 +443,42 @@ export class DirectusAccessService {
       );
     }
   }
+
+  /**
+   * Replace all policies for a user (remove old + add new)
+   */
+  async replaceUserPolicies(
+    userId: string,
+    policyIds: string[],
+    client: any = directus
+  ): Promise<void> {
+    try {
+      // 1. Get current policies to calculate diff
+      const currentPolicies = await this.getUserPolicies(userId, client);
+      const currentPolicyIds = currentPolicies.map((p: any) => p.id);
+
+      // 2. Identify policies to add and remove
+      const policiesToAdd = policyIds.filter(id => !currentPolicyIds.includes(id));
+      const policiesToRemove = currentPolicyIds.filter(id => !policyIds.includes(id));
+
+      // 3. Remove policies that are no longer needed
+      for (const policyId of policiesToRemove) {
+        await this.removeUserPolicy(userId, policyId, client);
+      }
+      
+      // 4. Add new policies
+      if (policiesToAdd.length > 0) {
+        await this.assignPoliciesToUser(userId, policiesToAdd, client);
+      }
+    } catch (error: any) {
+      console.error("Failed to replace user policies:", error);
+      throw new HttpError(
+        500,
+        `Failed to replace user policies: ${error.message}`,
+        "REPLACE_USER_POLICIES_FAILED"
+      );
+    }
+  }
 }
 
 export default new DirectusAccessService();

@@ -36,6 +36,10 @@ export const employeeResponseSchema = createEmployeeSchema.extend({
   id: z.uuid(),
   created_at: z.string().optional().nullable(),
   updated_at: z.string().optional().nullable(),
+  rfid_cards: z.array(z.object({
+      card_number: z.string(),
+      status: z.string()
+  })).optional(),
 });
 
 export type CreateEmployeeDto = z.infer<typeof createEmployeeSchema>;
@@ -110,4 +114,5 @@ export const toEmployeeResponseDto = (
   created_at: entity.created_at ?? null,
   updated_at: entity.updated_at ?? null,
   user: entity.user ? toUserResponseDto(entity.user) : undefined,
+  rfid_cards: (entity as any).rfid_cards,
 });

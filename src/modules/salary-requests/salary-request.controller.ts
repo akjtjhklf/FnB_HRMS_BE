@@ -111,3 +111,41 @@ export const deleteSalaryRequest = async (
     next(err);
   }
 };
+
+export const approveSalaryRequest = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { approved_by, manager_note } = req.body;
+    const data = await service.approve(req.params.id, approved_by, manager_note);
+    return sendSuccess(
+      res,
+      toSalaryRequestResponseDto(data),
+      200,
+      "Duyệt yêu cầu thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const rejectSalaryRequest = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { rejected_by, manager_note } = req.body;
+    const data = await service.reject(req.params.id, rejected_by, manager_note);
+    return sendSuccess(
+      res,
+      toSalaryRequestResponseDto(data),
+      200,
+      "Từ chối yêu cầu thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
