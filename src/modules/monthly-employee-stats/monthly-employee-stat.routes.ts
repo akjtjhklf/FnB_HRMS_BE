@@ -12,7 +12,11 @@ import {
   updateMonthlyEmployeeStatSchema,
 } from "./monthly-employee-stat.dto";
 
+import { requireAuth } from "../../middlewares/auth.middleware";
+
 const router = Router();
+
+router.use(requireAuth());
 
 router.get("/", listMonthlyEmployeeStats);
 router.get("/:id", getMonthlyEmployeeStat);

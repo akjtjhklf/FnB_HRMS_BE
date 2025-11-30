@@ -14,7 +14,11 @@ import {
   updateSalaryRequestSchema,
 } from "./salary-request.dto";
 
+import { requireAuth } from "../../middlewares/auth.middleware";
+
 const router = Router();
+
+router.use(requireAuth());
 
 router.get("/", listSalaryRequests);
 router.get("/:id", getSalaryRequest);

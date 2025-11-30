@@ -19,6 +19,7 @@ export const createEmployeeSchema = z.object({
     .enum(["active", "on_leave", "suspended", "terminated"])
     .default("active"),
   scheme_id: z.uuid().optional().nullable(),
+  position_id: z.string().optional().nullable(),
   default_work_hours_per_week: z.number().optional().nullable(),
   max_hours_per_week: z.number().optional().nullable(),
   max_consecutive_days: z.number().optional().nullable(),
@@ -94,6 +95,7 @@ export const toEmployeeResponseDto = (
   termination_date: entity.termination_date ?? null,
   status: entity.status ?? "active",
   scheme_id: entity.scheme_id ?? null,
+  position_id: entity.position_id ?? null,
   default_work_hours_per_week: entity.default_work_hours_per_week 
     ? Number(entity.default_work_hours_per_week) 
     : null,

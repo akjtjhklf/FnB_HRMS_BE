@@ -17,7 +17,11 @@ import {
   updateMonthlyPayrollSchema,
 } from "./monthly-payroll.dto";
 
+import { requireAuth } from "../../middlewares/auth.middleware";
+
 const router = Router();
+
+router.use(requireAuth());
 
 router.post("/generate", generateMonthlyPayroll); // Generate first
 

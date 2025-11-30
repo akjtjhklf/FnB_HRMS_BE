@@ -7,12 +7,14 @@ import {
   listShifts,
   updateShift,
   createBulkShifts,
+  getTodayShifts,
 } from "./shift.controller";
 import { createShiftSchema, updateShiftSchema } from "./shift.dto";
 
 const router = Router();
 
 router.get("/", listShifts);
+router.get("/today", getTodayShifts); // Must be before /:id to avoid route conflict
 router.get("/:id", getShift);
 router.post("/", validateBody(createShiftSchema), createShift);
 

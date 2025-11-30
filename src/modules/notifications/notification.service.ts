@@ -77,7 +77,7 @@ export class NotificationService extends BaseService<Notification> {
         // Send to specific users
         const userIds = notification.user_ids ? JSON.parse(notification.user_ids) : [];
         if (userIds.length === 0) {
-          throw new HttpError(400, "No users specified");
+          throw new HttpError(400, "No users specified for SPECIFIC recipient type");
         }
         await this.novuService.sendToMultipleUsers({
           subscriberIds: userIds,
@@ -85,19 +85,8 @@ export class NotificationService extends BaseService<Notification> {
           payload,
           triggeredBy: notification.created_by || undefined,
         });
-      } else if (notification.recipient_type === RECIPIENT_TYPE.DEPARTMENT) {
-        // Send to department topics
-        const deptIds = notification.department_ids
-          ? JSON.parse(notification.department_ids)
-          : [];
-        for (const deptId of deptIds) {
-          await this.novuService.sendToTopic({
-            topicKey: `department-${deptId}`,
-            workflowId,
-            payload,
-            triggeredBy: notification.created_by || undefined,
-          });
-        }
+      } else {
+        throw new HttpError(400, `Invalid recipient_type: ${notification.recipient_type}`);
       }
 
       // Update status

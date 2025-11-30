@@ -15,14 +15,19 @@ function parseFilterObject(filterParam: any): Record<string, any> {
     if (Array.isArray(value)) {
       filter[key] = { _in: value };
     }
-    // If value is "true" or "false" string, convert to boolean
+    // If value is "true" or "false" string, convert to 1/0 for Directus (tinyint boolean fields)
     else if (value === 'true') {
-      filter[key] = { _eq: true };
+      filter[key] = { _eq: 1 };
     }
     else if (value === 'false') {
-      filter[key] = { _eq: false };
+      filter[key] = { _eq: 0 };
     }
-    // Otherwise, use _eq operator
+    // Check if value is numeric string
+    else if (typeof value === 'string' && !isNaN(Number(value))) {
+      // Convert to number for proper comparison
+      filter[key] = { _eq: Number(value) };
+    }
+    // Otherwise, use _eq operator with string value
     else {
       filter[key] = { _eq: value };
     }

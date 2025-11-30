@@ -126,6 +126,90 @@ export class ShiftService extends BaseService<Shift> {
     
     return created;
   }
+
+  /**
+   * ============================================
+   * 📅 LẤY CA LÀM VIỆC HÔM NAY
+   * ============================================
+   */
+  async getTodayShifts() {
+    try {
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      console.log(`📅 [getTodayShifts] Fetching shifts for date: ${today}`);
+      
+      // Fetch all shifts for today
+      const shifts = await this.repo.findAll({
+        filter: {
+          shift_date: { _eq: today }
+        },
+        fields: [
+          '*',
+          'shift_type_id.id',
+          'shift_type_id.name',
+          'shift_type_id.start_time',
+          'shift_type_id.end_time',
+          'shift_type_id.color',
+          'shift_type_id.code'
+        ]
+      });
+
+      console.log(`✅ [getTodayShifts] Found ${shifts.length} shifts`);
+
+      // Get assignment counts for each shift
+      const directus = (this.repo as any).directus;
+      const results = [];
+
+      for (const shift of shifts) {
+        try {
+          // Count assigned employees for this shift
+          const assignments = await directus.items('schedule_assignments').readByQuery({
+            filter: {
+              shift_id: { _eq: shift.id },
+              status: { _in: ['assigned', 'tentative'] }
+            },
+            aggregate: {
+              count: ['id']
+            }
+          });
+
+          const assignedCount = assignments?.data?.[0]?.count?.id || 0;
+          const requiredCount = shift.total_required || 0;
+
+          results.push({
+            id: shift.id,
+            shift_type_name: (shift.shift_type_id as any)?.name || 'N/A',
+            shift_type_code: (shift.shift_type_id as any)?.code || 'N/A',
+            start_time: (shift.shift_type_id as any)?.start_time || 'N/A',
+            end_time: (shift.shift_type_id as any)?.end_time || 'N/A',
+            color: (shift.shift_type_id as any)?.color || '#999',
+            total_required: requiredCount,
+            total_assigned: assignedCount,
+            status: assignedCount >= requiredCount ? 'sufficient' : 'insufficient'
+          });
+        } catch (assignmentError) {
+          console.error(`❌ [getTodayShifts] Error counting assignments for shift ${shift.id}:`, assignmentError);
+          // Continue with other shifts even if one fails
+          results.push({
+            id: shift.id,
+            shift_type_name: (shift.shift_type_id as any)?.name || 'N/A',
+            shift_type_code: (shift.shift_type_id as any)?.code || 'N/A',
+            start_time: (shift.shift_type_id as any)?.start_time || 'N/A',
+            end_time: (shift.shift_type_id as any)?.end_time || 'N/A',
+            color: (shift.shift_type_id as any)?.color || '#999',
+            total_required: shift.total_required || 0,
+            total_assigned: 0,
+            status: 'insufficient'
+          });
+        }
+      }
+
+      console.log(`📊 [getTodayShifts] Returning ${results.length} results`);
+      return results;
+    } catch (error) {
+      console.error(`❌ [getTodayShifts] Error:`, error);
+      throw error;
+    }
+  }
 }
 
 export default ShiftService;

@@ -5,6 +5,7 @@ export interface Contract {
   start_date?: string | null; // ISO date
   end_date?: string | null; // ISO date
   base_salary?: number | null;
+  salary_scheme_id?: string | null; // Link to salary_schemes
   probation_end_date?: string | null;
   signed_doc_url?: string | null;
   is_active?: boolean | null;

@@ -17,6 +17,7 @@ export interface Employee {
   termination_date?: string | null;
   status?: "active" | "on_leave" | "suspended" | "terminated";
   scheme_id?: string | null;
+  position_id?: string | null;
   default_work_hours_per_week?: number | null;
   max_hours_per_week?: number | null;
   max_consecutive_days?: number | null;

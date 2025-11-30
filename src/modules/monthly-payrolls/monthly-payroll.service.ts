@@ -227,27 +227,63 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           continue;
         }
 
-        // 3. Lấy Salary Scheme (nếu có link từ contract hoặc position)
-        // Logic: Contract -> Salary Scheme. Nếu contract không có field này thì dùng base_salary của contract.
-        // User yêu cầu: "Salary schemes —> Ảnh hưởng đến Contracts và Salary"
-        // Giả sử ta lấy scheme dựa trên position nếu contract không link, hoặc dùng rate từ contract.
-        // Ở đây ta dùng base_salary từ contract làm chuẩn.
-        
-        const baseSalary = contract.base_salary || 0;
+        // 3. Lấy Salary Scheme (ưu tiên từ Contract)
+        let salarySchemeId = contract.salary_scheme_id;
+        let baseSalary = contract.base_salary || 0;
+        let salaryScheme = null;
+
+        // Nếu contract có scheme, fetch thông tin scheme
+        if (salarySchemeId) {
+             try {
+                // Fetch scheme details
+                const scheme = await client.request((readItems as any)("salary_schemes", {
+                    filter: { id: { _eq: salarySchemeId } },
+                    limit: 1
+                }));
+                if (scheme && scheme[0]) {
+                    salaryScheme = scheme[0];
+                    // Nếu là lương cứng (monthly), dùng rate của scheme làm base salary nếu contract không override (hoặc override ngược lại)
+                    // Logic: Contract base_salary là số tiền thực nhận. Scheme rate là mức chuẩn.
+                    // Nếu contract.base_salary = 0 hoặc null, lấy từ scheme.rate
+                    if (!baseSalary && salaryScheme.rate) {
+                        baseSalary = Number(salaryScheme.rate);
+                    }
+                }
+             } catch (e) {
+                 console.error("Error fetching salary scheme:", e);
+             }
+        } else if (emp.position_id) {
+            // Fallback: Tìm scheme theo position (nếu chưa có trong contract)
+             try {
+                const schemes = await client.request((readItems as any)("salary_schemes", {
+                    filter: { 
+                        position_id: { _eq: emp.position_id },
+                        is_active: { _eq: true }
+                    },
+                    limit: 1
+                }));
+                if (schemes && schemes[0]) {
+                    salaryScheme = schemes[0];
+                    salarySchemeId = salaryScheme.id;
+                    if (!baseSalary && salaryScheme.rate) {
+                        baseSalary = Number(salaryScheme.rate);
+                    }
+                }
+             } catch (e) {
+                 console.error("Error fetching position scheme:", e);
+             }
+        }
         
         // 4. Kiểm tra xem bảng lương tháng này đã có chưa
         const existing = await this.repo.findByEmployeeAndMonth(emp.id, month);
         if (existing) {
-          // Nếu đã có và chưa lock thì có thể update? Hoặc skip.
-          // Ở đây ta skip nếu đã tồn tại để tránh duplicate.
           errors.push({ employee_id: emp.id, error: "Payroll already exists for this month" });
           continue;
         }
 
-        // 5. Tính toán (đơn giản hoá cho MVP, sau này thêm logic chấm công)
-        // TODO: Tích hợp module chấm công để tính ngày công thực tế
-        const allowances = 0; // Cần lấy từ bảng allowances
-        const deductions = 0; // Cần lấy từ bảng deductions
+        // 5. Tính toán (đơn giản hoá cho MVP)
+        const allowances = 0; 
+        const deductions = 0; 
         const bonuses = 0;
         const overtime = 0;
         const penalties = 0;
@@ -275,7 +311,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           gross_salary,
           net_salary,
           status: "draft",
-          // salary_scheme_id: ... // Nếu có
+          salary_scheme_id: salarySchemeId // Save linked scheme
         });
         
         results.push(payroll);
