@@ -298,6 +298,34 @@ export class EmployeeService extends BaseService<Employee> {
         if (data.policyIds) {
            await DirectusAccessService.replaceUserPolicies(employee.user.id, data.policyIds);
         }
+      } else if (data.email && data.password && data.roleId) {
+        // 2b. Create User if not exists (and we have enough info)
+        console.log("Creating missing User for Employee during update...");
+        
+        // Check if email exists
+        const existingUsers = await DirectusClient.request(readUsers({ filter: { email: { _eq: data.email } } }));
+        if (existingUsers && existingUsers.length > 0) {
+             throw new HttpError(409, "Email already exists", "EMAIL_CONFLICT");
+        }
+
+        const userPayload = {
+            email: data.email,
+            password: data.password,
+            first_name: data.first_name || employee.first_name,
+            last_name: data.last_name || employee.last_name,
+            status: "active" as const,
+            role: data.roleId
+        };
+
+        const newUser = await DirectusClient.request(createUser(userPayload));
+        
+        // Link to employee
+        await this.repo.update(id, { user_id: newUser.id });
+
+        // Assign policies
+        if (data.policyIds && data.policyIds.length > 0) {
+             await DirectusAccessService.assignPoliciesToUser(newUser.id, data.policyIds);
+        }
       }
 
       // 3. Update RFID
