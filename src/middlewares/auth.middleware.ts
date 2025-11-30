@@ -23,7 +23,7 @@ export function apiKeyAuth(optional = true) {
 }
 
 // JWT Authentication middleware - đồng bộ với Directus
-export function requireAuth() {
+export function requireAuth(allowedRoles?: string[]) {
   return async (
     req: Request,
     _res: Response<ApiResponse<unknown>>,
@@ -63,6 +63,27 @@ export function requireAuth() {
       if (!currentUser) {
         console.log("Invalid or expired token");
         return next(new HttpError(401, "Invalid or expired token", "UNAUTHORIZED"));
+      }
+
+      // ✅ Role-Based Access Control
+      if (allowedRoles && allowedRoles.length > 0) {
+        const userRole = (currentUser as any).role?.name?.toLowerCase();
+        
+        // Always allow 'administrator' role
+        if (userRole === 'administrator') {
+          console.log(`✅ Access granted. User is Administrator.`);
+        } else {
+          const hasPermission = allowedRoles.some(role => 
+            role.toLowerCase() === userRole
+          );
+
+          if (!hasPermission) {
+            console.log(`❌ Access denied. User role: ${userRole}, Required: ${allowedRoles.join(', ')}`);
+            return next(new HttpError(403, "Forbidden: Insufficient permissions", "FORBIDDEN"));
+          }
+
+          console.log(`✅ Access granted. User role: ${userRole}`);
+        }
       }
 
       // ✅ NEW: Lookup employee linked to this user

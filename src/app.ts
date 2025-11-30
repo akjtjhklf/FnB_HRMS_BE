@@ -124,6 +124,10 @@ app.use("/api/notification_logs", notificationLogsRouter);
 app.use("/api/files", filesRouter);
 app.use("/analysis", analysisRoutes);
 
+// 📊 Analytics
+import analyticsRouter from "./modules/analytics/analytics.routes";
+app.use("/api/analytics", analyticsRouter);
+
 setupSwagger(app);
 app.use(apiKeyAuth(false)); 
 // ========== ERROR HANDLER ==========
