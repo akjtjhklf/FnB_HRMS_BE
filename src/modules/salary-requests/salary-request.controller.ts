@@ -61,7 +61,8 @@ export const createSalaryRequest = async (
   next: NextFunction
 ) => {
   try {
-    const data = await service.create(req.body);
+    const currentUser = (req as any).user;
+    const data = await service.create(req.body, currentUser);
     return sendSuccess(
       res,
       toSalaryRequestResponseDto(data),

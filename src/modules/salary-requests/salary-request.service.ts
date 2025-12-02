@@ -113,8 +113,51 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
 
   /**
    * Tạo yêu cầu mới
+   * @param data - Dữ liệu yêu cầu
+   * @param currentUser - User hiện tại (từ auth middleware)
    */
-  async create(data: Partial<SalaryRequest>) {
+  async create(data: Partial<SalaryRequest>, currentUser?: any) {
+    // RBAC: Admin/Manager không được tạo yêu cầu chỉnh sửa lương
+    if (currentUser && (currentUser.role?.name === 'Administrator' || currentUser.role?.name === 'Manager')) {
+      throw new HttpError(
+        403,
+        "Admin và Manager không được tạo yêu cầu chỉnh sửa lương",
+        "FORBIDDEN"
+      );
+    }
+
+    // Employee chỉ được tạo request cho chính mình
+    if (currentUser && currentUser.role?.name !== 'Administrator' && currentUser.role?.name !== 'Manager') {
+      // Tìm employee theo user_id
+      const employees = await this.employeeRepo.findAll({
+        filter: { user_id: { _eq: currentUser.id } },
+        fields: ["id"],
+        limit: 1,
+      });
+      
+      if (employees.length === 0) {
+        throw new HttpError(
+          403,
+          "Không tìm thấy thông tin nhân viên của bạn",
+          "EMPLOYEE_NOT_FOUND"
+        );
+      }
+      
+      const myEmployeeId = employees[0].id;
+      
+      // Kiểm tra employee_id trong request có phải là của chính mình không
+      if (data.employee_id && data.employee_id !== myEmployeeId) {
+        throw new HttpError(
+          403,
+          "Bạn chỉ có thể tạo yêu cầu cho chính mình",
+          "FORBIDDEN"
+        );
+      }
+      
+      // Gán employee_id nếu chưa có
+      data.employee_id = myEmployeeId;
+    }
+
     return await this.repo.create(data);
   }
 

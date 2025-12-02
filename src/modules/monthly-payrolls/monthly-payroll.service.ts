@@ -4,14 +4,26 @@ import MonthlyPayrollRepository from "./monthly-payroll.repository";
 import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 import { readItems } from "@directus/sdk";
 import EmployeeRepository from "../employees/employee.repository";
+import { NovuService } from "../notifications/novu.service";
+import { NotificationLogRepository } from "../notifications/notification-log.repository";
 
 export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   declare repo: MonthlyPayrollRepository;
   private employeeRepo: EmployeeRepository;
+  private novuService?: NovuService;
   
   constructor(repo = new MonthlyPayrollRepository()) {
     super(repo);
     this.employeeRepo = new EmployeeRepository();
+    
+    // Initialize Novu service
+    const novuApiKey = process.env.NOVU_API_KEY || "";
+    if (novuApiKey) {
+      this.novuService = new NovuService(
+        { apiKey: novuApiKey },
+        new NotificationLogRepository()
+      );
+    }
   }
 
   /**
@@ -40,10 +52,30 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   async listPaginated(query: PaginationQueryDto, currentUser?: any): Promise<PaginatedResponse<MonthlyPayroll>> {
     // RBAC: Nếu là nhân viên thường (không phải admin/manager), chỉ xem được lương của mình
     if (currentUser && currentUser.role?.name !== 'Administrator' && currentUser.role?.name !== 'Manager') {
-      // Nếu user có gắn với employee_id
-      if (currentUser.employee_id) {
-        query.filter = query.filter || {};
-        query.filter.employee_id = { _eq: currentUser.employee_id };
+      // Tìm employee theo user_id
+      try {
+        const employees = await this.employeeRepo.findAll({
+          filter: { user_id: { _eq: currentUser.id } },
+          fields: ["id"],
+          limit: 1,
+        });
+        
+        if (employees.length > 0) {
+          query.filter = query.filter || {};
+          query.filter.employee_id = { _eq: employees[0].id };
+        } else {
+          // Không tìm thấy employee cho user này -> trả về rỗng
+          return {
+            data: [],
+            meta: { total: 0, page: Number(query.page) || 1, limit: Number(query.limit) || 10, totalPages: 0 }
+          };
+        }
+      } catch (err) {
+        console.error("⚠️ Failed to find employee for user:", err);
+        return {
+          data: [],
+          meta: { total: 0, page: Number(query.page) || 1, limit: Number(query.limit) || 10, totalPages: 0 }
+        };
       }
     }
 
@@ -71,7 +103,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           // No matching employees, return empty result
           return {
             data: [],
-            meta: { total: 0, page: query.page || 1, limit: query.limit || 10, totalPages: 0 }
+            meta: { total: 0, page: Number(query.page) || 1, limit: Number(query.limit) || 10, totalPages: 0 }
           };
         }
         // Clear search to prevent further string search in repository
@@ -112,7 +144,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
               }
             }
             return payroll;
-          });
+          }) as MonthlyPayroll[];
         }
       } catch (err) {
         console.error("⚠️ Failed to manual populate employees:", err);
@@ -473,6 +505,90 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     }
 
     return await this.repo.update(id, { status: "draft" });
+  }
+
+  /**
+   * Gửi phiếu lương qua Novu (in-app notification)
+   */
+  async sendPayslip(id: string, sentBy?: string): Promise<{ success: boolean; message: string }> {
+    const payroll = await this.repo.findById(id);
+    if (!payroll) {
+      throw new HttpError(404, "Không tìm thấy bảng lương", "PAYROLL_NOT_FOUND");
+    }
+
+    if (!this.novuService) {
+      throw new HttpError(500, "Novu service not configured", "NOVU_NOT_CONFIGURED");
+    }
+
+    // Get employee info
+    const employeeId = typeof payroll.employee_id === 'object' 
+      ? (payroll.employee_id as any).id 
+      : payroll.employee_id;
+    
+    const employee = await this.employeeRepo.findById(employeeId);
+    if (!employee) {
+      throw new HttpError(404, "Không tìm thấy nhân viên", "EMPLOYEE_NOT_FOUND");
+    }
+
+    // Format currency
+    const formatCurrency = (amount: number) => {
+      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
+    };
+
+    // Prepare payload
+    const payload = {
+      employeeName: employee.full_name,
+      month: payroll.month,
+      baseSalary: formatCurrency(payroll.base_salary || 0),
+      allowances: formatCurrency(payroll.allowances || 0),
+      bonuses: formatCurrency(payroll.bonuses || 0),
+      overtimePay: formatCurrency(payroll.overtime_pay || 0),
+      grossSalary: formatCurrency(payroll.gross_salary || 0),
+      deductions: formatCurrency(payroll.deductions || 0),
+      penalties: formatCurrency(payroll.penalties || 0),
+      netSalary: formatCurrency(payroll.net_salary || 0),
+      totalWorkHours: payroll.total_work_hours || 0,
+      payrollId: payroll.id,
+    };
+
+    try {
+      // Send in-app notification via Novu
+      await this.novuService.sendToUser({
+        subscriberId: employeeId,
+        workflowId: "payslip-notification", // Workflow ID in Novu
+        payload,
+        triggeredBy: sentBy || "system",
+      });
+
+      console.log(`✅ Payslip sent to employee ${employee.full_name} (${employeeId})`);
+
+      return {
+        success: true,
+        message: `Đã gửi phiếu lương cho ${employee.full_name}`,
+      };
+    } catch (error: any) {
+      console.error("❌ Failed to send payslip:", error);
+      throw new HttpError(500, `Gửi phiếu lương thất bại: ${error?.message}`, "SEND_PAYSLIP_FAILED");
+    }
+  }
+
+  /**
+   * Gửi phiếu lương cho nhiều nhân viên (bulk)
+   */
+  async sendPayslipBulk(payrollIds: string[], sentBy?: string): Promise<{ sent: number; failed: number; errors: string[] }> {
+    const results = { sent: 0, failed: 0, errors: [] as string[] };
+
+    for (const id of payrollIds) {
+      try {
+        await this.sendPayslip(id, sentBy);
+        results.sent++;
+      } catch (error: any) {
+        results.failed++;
+        results.errors.push(`${id}: ${error?.message}`);
+      }
+    }
+
+    return results;
   }
 }
 

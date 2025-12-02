@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { ApiResponse, sendSuccess } from "../../core/response";
+import { ApiResponse, sendError, sendSuccess } from "../../core/response";
 import MonthlyPayrollService from "./monthly-payroll.service";
 import { toMonthlyPayrollResponseDto } from "./monthly-payroll.dto";
 import { parsePaginationQuery } from "../../utils/query.utils";
@@ -215,6 +215,44 @@ export const unlockMonthlyPayroll = async (
       200,
       "Mở khóa bảng lương thành công"
     );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Gửi phiếu lương qua Novu (in-app notification)
+ */
+export const sendPayslip = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const sentBy = (req as any).user?.id;
+    const result = await service.sendPayslip(req.params.id, sentBy);
+    return sendSuccess(res, result, 200, result.message);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Gửi phiếu lương hàng loạt
+ */
+export const sendPayslipBulk = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { payrollIds } = req.body;
+    if (!payrollIds || !Array.isArray(payrollIds) || payrollIds.length === 0) {
+      return sendError(res, "Danh sách bảng lương không hợp lệ", 400);
+    }
+    const sentBy = (req as any).user?.id;
+    const result = await service.sendPayslipBulk(payrollIds, sentBy);
+    return sendSuccess(res, result, 200, `Đã gửi ${result.sent}/${payrollIds.length} phiếu lương`);
   } catch (err) {
     next(err);
   }
