@@ -6,9 +6,14 @@ import {
 import { SalaryRequest } from "./salary-request.model";
 import SalaryRequestRepository from "./salary-request.repository";
 
+import EmployeeRepository from "../employees/employee.repository";
+
 export class SalaryRequestService extends BaseService<SalaryRequest> {
+  private employeeRepo: EmployeeRepository;
+
   constructor(repo = new SalaryRequestRepository()) {
     super(repo);
+    this.employeeRepo = new EmployeeRepository();
   }
 
   /**
@@ -21,7 +26,41 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
   async listPaginated(
     query: PaginationQueryDto
   ): Promise<PaginatedResponse<SalaryRequest>> {
-    return await (this.repo as SalaryRequestRepository).findAllPaginated(query);
+    const result = await (this.repo as SalaryRequestRepository).findAllPaginated(query);
+
+    // Manual populate employee data
+    if (result.data.length > 0) {
+      try {
+        const employeeIds = [...new Set(
+          result.data
+            .map(p => p.employee_id)
+            .filter(id => typeof id === 'string')
+        )] as string[];
+
+        if (employeeIds.length > 0) {
+          const employees = await this.employeeRepo.findAll({
+            filter: { id: { _in: employeeIds } },
+            fields: ["id", "full_name", "employee_code", "department_id.*", "position_id.*"]
+          });
+
+          const employeeMap = new Map(employees.map(e => [e.id, e]));
+
+          result.data = result.data.map(request => {
+            if (typeof request.employee_id === 'string') {
+              const emp = employeeMap.get(request.employee_id);
+              if (emp) {
+                return { ...request, employee_id: emp };
+              }
+            }
+            return request;
+          });
+        }
+      } catch (err) {
+        console.error("⚠️ Failed to manual populate employees in requests:", err);
+      }
+    }
+
+    return result;
   }
 
   /**

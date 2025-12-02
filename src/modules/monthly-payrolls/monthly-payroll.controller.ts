@@ -30,7 +30,7 @@ export const listMonthlyPayrolls = async (
       query.filter.status = { _eq: status };
     }
     
-    const result = await service.listPaginated(query);
+    const result = await service.listPaginated(query, (req as any).user);
     
     return sendSuccess(
       res,
@@ -150,9 +150,6 @@ export const markMonthlyPayrollAsPaid = async (
   }
 };
 
-/**
- * Generate payroll for a month
- */
 export const generateMonthlyPayroll = async (
   req: Request,
   res: Response<ApiResponse<unknown>>,
@@ -164,7 +161,9 @@ export const generateMonthlyPayroll = async (
       throw new Error("Month is required (YYYY-MM)");
     }
     
+    console.log('🔄 Generating payroll for month:', month);
     const result = await service.generatePayroll(month, employee_ids);
+    console.log('✅ Payroll generated:', result);
     
     return sendSuccess(
       res,
@@ -173,6 +172,8 @@ export const generateMonthlyPayroll = async (
       "Tạo bảng lương thành công"
     );
   } catch (err) {
+    console.error('❌ Generate payroll error:', err);
+    console.error('Error stack:', err instanceof Error ? err.stack : 'No stack');
     next(err);
   }
 };

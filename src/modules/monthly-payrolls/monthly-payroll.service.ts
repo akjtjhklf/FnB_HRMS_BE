@@ -3,12 +3,15 @@ import { MonthlyPayroll } from "./monthly-payroll.model";
 import MonthlyPayrollRepository from "./monthly-payroll.repository";
 import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 import { readItems } from "@directus/sdk";
+import EmployeeRepository from "../employees/employee.repository";
 
 export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   declare repo: MonthlyPayrollRepository;
+  private employeeRepo: EmployeeRepository;
   
   constructor(repo = new MonthlyPayrollRepository()) {
     super(repo);
+    this.employeeRepo = new EmployeeRepository();
   }
 
   /**
@@ -32,10 +35,58 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   }
 
   /**
-   * Lấy danh sách có phân trang
+   * Lấy danh sách có phân trang - Manual Populate Employee
    */
-  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<MonthlyPayroll>> {
-    return await this.repo.findAllPaginated(query);
+  async listPaginated(query: PaginationQueryDto, currentUser?: any): Promise<PaginatedResponse<MonthlyPayroll>> {
+    // RBAC: Nếu là nhân viên thường (không phải admin/manager), chỉ xem được lương của mình
+    if (currentUser && currentUser.role?.name !== 'Administrator' && currentUser.role?.name !== 'Manager') {
+      // Nếu user có gắn với employee_id
+      if (currentUser.employee_id) {
+        query.filter = query.filter || {};
+        query.filter.employee_id = { _eq: currentUser.employee_id };
+      }
+    }
+
+    const result = await this.repo.findAllPaginated(query);
+    
+    // Manual populate employee data if needed
+    if (result.data.length > 0) {
+      try {
+        // Collect unique employee IDs that are strings
+        const employeeIds = [...new Set(
+          result.data
+            .map(p => p.employee_id)
+            .filter(id => typeof id === 'string')
+        )] as string[];
+
+        if (employeeIds.length > 0) {
+          // Fetch employees
+          const employees = await this.employeeRepo.findAll({
+            filter: { id: { _in: employeeIds } },
+            fields: ["id", "full_name", "employee_code", "department_id.*", "position_id.*"]
+          });
+
+          // Create map for fast lookup
+          const employeeMap = new Map(employees.map(e => [e.id, e]));
+
+          // Attach employee objects to payrolls
+          result.data = result.data.map(payroll => {
+            if (typeof payroll.employee_id === 'string') {
+              const emp = employeeMap.get(payroll.employee_id);
+              if (emp) {
+                return { ...payroll, employee_id: emp };
+              }
+            }
+            return payroll;
+          });
+        }
+      } catch (err) {
+        console.error("⚠️ Failed to manual populate employees:", err);
+        // Continue without population if fails
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -184,15 +235,34 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     });
   }
   /**
-   * Tạo bảng lương cho một tháng (cho tất cả hoặc danh sách nhân viên)
+   * Tạo bảng lương cho một tháng (tích hợp với attendance)
    */
   async generatePayroll(month: string, employeeIds?: string[]) {
-    const client = (this.repo as any).client; // Access directus client
+    const client = (this.repo as any).client;
     
-    // 1. Lấy danh sách nhân viên cần tính lương
+    // Parse month to get year and month number for attendance query
+    const [year, monthNum] = month.split('-').map(Number);
+    
+    const PENALTY_RATE_PER_HOUR = 10000; // 10,000 VND/hour
+    const STANDARD_WORK_DAYS = 26;
+    
+    // Import attendance service
+    const AttendanceService = require('../attendance-shifts/attendance.service').default;
+    const attendanceService = new AttendanceService();
+    
+    // Get attendance report for the month
+    let attendanceReport;
+    try {
+      attendanceReport = await attendanceService.getMonthlyReport(monthNum, year);
+    } catch (error) {
+      console.error('Error fetching attendance report:', error);
+      attendanceReport = [];
+    }
+    
+    // 1. Lấy danh sách nhân viên
     let employeesQuery: any = {
       filter: { status: { _eq: "active" } },
-      fields: ["id", "position_id"],
+      fields: ["id"], // Only need id
       limit: -1,
     };
     
@@ -208,85 +278,85 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
 
     for (const emp of employeeList) {
       try {
-        // 2. Lấy hợp đồng active
+        // 2. Get active contract
         const contracts = await client.request((readItems as any)("contracts", {
           filter: {
             employee_id: { _eq: emp.id },
-            is_active: { _eq: true },
-            status: { _neq: "expired" }
+            is_active: { _eq: true }
           },
+          fields: ["*", "salary_scheme_id.*"],
           limit: 1
         }));
         
         const contract = contracts?.[0];
         
-        // Nếu không có hợp đồng active, bỏ qua hoặc báo lỗi?
-        // Tạm thời bỏ qua nếu không có hợp đồng
         if (!contract) {
           errors.push({ employee_id: emp.id, error: "No active contract found" });
           continue;
         }
 
-        // 3. Lấy Salary Scheme (ưu tiên từ Contract)
-        let salarySchemeId = contract.salary_scheme_id;
+        // 3. Get attendance data
+        const employeeAttendance = attendanceReport.find((r: any) => r.employee.id === emp.id);
+        
+        const attendanceData = employeeAttendance ? {
+          total_work_days: employeeAttendance.stats.total_work_days,
+          total_work_hours: employeeAttendance.stats.total_work_hours,
+          total_late_minutes: employeeAttendance.stats.total_late_minutes,
+          total_early_leave_minutes: employeeAttendance.stats.total_early_leave_minutes,
+        } : {
+          total_work_days: 0,
+          total_work_hours: 0,
+          total_late_minutes: 0,
+          total_early_leave_minutes: 0,
+        };
+        
+        // 4. Calculate base salary based on pay type
+        const salaryScheme = contract.salary_scheme_id;
         let baseSalary = contract.base_salary || 0;
-        let salaryScheme = null;
-
-        // Nếu contract có scheme, fetch thông tin scheme
-        if (salarySchemeId) {
-             try {
-                // Fetch scheme details
-                const scheme = await client.request((readItems as any)("salary_schemes", {
-                    filter: { id: { _eq: salarySchemeId } },
-                    limit: 1
-                }));
-                if (scheme && scheme[0]) {
-                    salaryScheme = scheme[0];
-                    // Nếu là lương cứng (monthly), dùng rate của scheme làm base salary nếu contract không override (hoặc override ngược lại)
-                    // Logic: Contract base_salary là số tiền thực nhận. Scheme rate là mức chuẩn.
-                    // Nếu contract.base_salary = 0 hoặc null, lấy từ scheme.rate
-                    if (!baseSalary && salaryScheme.rate) {
-                        baseSalary = Number(salaryScheme.rate);
-                    }
-                }
-             } catch (e) {
-                 console.error("Error fetching salary scheme:", e);
-             }
-        } else if (emp.position_id) {
-            // Fallback: Tìm scheme theo position (nếu chưa có trong contract)
-             try {
-                const schemes = await client.request((readItems as any)("salary_schemes", {
-                    filter: { 
-                        position_id: { _eq: emp.position_id },
-                        is_active: { _eq: true }
-                    },
-                    limit: 1
-                }));
-                if (schemes && schemes[0]) {
-                    salaryScheme = schemes[0];
-                    salarySchemeId = salaryScheme.id;
-                    if (!baseSalary && salaryScheme.rate) {
-                        baseSalary = Number(salaryScheme.rate);
-                    }
-                }
-             } catch (e) {
-                 console.error("Error fetching position scheme:", e);
-             }
+        let payType: string = 'monthly'; // Default to monthly
+        let hourlyRate: number | null = null;
+        
+        if (salaryScheme && typeof salaryScheme === 'object') {
+          payType = salaryScheme.pay_type || 'monthly';
+          const rate = salaryScheme.rate || 0;
+          
+          switch (payType) {
+            case 'hourly':
+              baseSalary = rate * attendanceData.total_work_hours;
+              hourlyRate = rate;
+              break;
+            case 'fixed_shift':
+              baseSalary = rate * attendanceData.total_work_days;
+              break;
+            case 'monthly':
+            default:
+              const dailyRate = rate / STANDARD_WORK_DAYS;
+              baseSalary = dailyRate * attendanceData.total_work_days;
+              break;
+          }
+        } else if (baseSalary) {
+          // Use base salary from contract with pro-rated calculation
+          const dailyRate = baseSalary / STANDARD_WORK_DAYS;
+          baseSalary = dailyRate * attendanceData.total_work_days;
         }
         
-        // 4. Kiểm tra xem bảng lương tháng này đã có chưa
+        // 5. Calculate penalties
+        const latePenalty = (attendanceData.total_late_minutes / 60) * PENALTY_RATE_PER_HOUR;
+        const earlyLeavePenalty = (attendanceData.total_early_leave_minutes / 60) * PENALTY_RATE_PER_HOUR;
+        const totalPenalties = latePenalty + earlyLeavePenalty;
+        
+        // 6. Check if payroll exists
         const existing = await this.repo.findByEmployeeAndMonth(emp.id, month);
         if (existing) {
           errors.push({ employee_id: emp.id, error: "Payroll already exists for this month" });
           continue;
         }
 
-        // 5. Tính toán (đơn giản hoá cho MVP)
+        // 7. Calculate final amounts
         const allowances = 0; 
         const deductions = 0; 
         const bonuses = 0;
         const overtime = 0;
-        const penalties = 0;
         
         const { gross_salary, net_salary } = this.calculateSalaries({
           base_salary: baseSalary,
@@ -294,24 +364,30 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           bonuses,
           overtime_pay: overtime,
           deductions,
-          penalties
+          penalties: totalPenalties
         });
 
-        // 6. Tạo bảng lương
+        // 8. Create payroll
         const payroll = await this.repo.create({
           id: crypto.randomUUID(),
           employee_id: emp.id,
+          contract_id: contract.id,
           month,
           base_salary: baseSalary,
+          pay_type: payType as any,
+          hourly_rate: hourlyRate,
           allowances,
           bonuses,
           overtime_pay: overtime,
           deductions,
-          penalties,
+          penalties: totalPenalties,
+          late_penalty: latePenalty,
+          early_leave_penalty: earlyLeavePenalty,
           gross_salary,
           net_salary,
           status: "draft",
-          salary_scheme_id: salarySchemeId // Save linked scheme
+          salary_scheme_id: typeof salaryScheme === 'object' ? salaryScheme.id : salaryScheme,
+          ...attendanceData
         });
         
         results.push(payroll);

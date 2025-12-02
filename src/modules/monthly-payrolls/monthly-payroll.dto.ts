@@ -45,9 +45,12 @@ export const toMonthlyPayrollResponseDto = (
   entity: MonthlyPayroll
 ): any => ({
   id: entity.id,
-  employee_id: entity.employee_id, // Keep as-is (can be string or populated object)
+  employee_id: entity.employee_id, // Keep as-is - can be object with full data or just ID string
   month: entity.month,
-  salary_scheme_id: entity.salary_scheme_id ?? null, // Keep as-is (can be string or populated object)
+  salary_scheme_id: entity.salary_scheme_id ?? null, // Keep as-is
+  contract_id: entity.contract_id ?? null,
+  pay_type: entity.pay_type ?? null,
+  hourly_rate: entity.hourly_rate ?? null,
   base_salary: entity.base_salary,
   allowances: entity.allowances,
   bonuses: entity.bonuses,
@@ -57,9 +60,11 @@ export const toMonthlyPayrollResponseDto = (
   gross_salary: entity.gross_salary,
   net_salary: entity.net_salary,
   total_work_hours: entity.total_work_hours ?? null,
-  overtime_hours: entity.overtime_hours ?? null,
-  late_minutes: entity.late_minutes ?? null,
-  absent_days: entity.absent_days ?? null,
+  total_work_days: entity.total_work_days ?? null,
+  total_late_minutes: entity.total_late_minutes ?? null,
+  total_early_leave_minutes: entity.total_early_leave_minutes ?? null,
+  late_penalty: entity.late_penalty ?? null,
+  early_leave_penalty: entity.early_leave_penalty ?? null,
   notes: entity.notes ?? null,
   status: entity.status,
   approved_by: entity.approved_by ?? null,
