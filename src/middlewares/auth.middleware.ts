@@ -23,7 +23,7 @@ export function apiKeyAuth(optional = true) {
 }
 
 // JWT Authentication middleware - đồng bộ với Directus
-export function requireAuth(allowedRoles?: string[]) {
+export function requireAuth() {
   return async (
     req: Request,
     _res: Response<ApiResponse<unknown>>,
@@ -65,52 +65,7 @@ export function requireAuth(allowedRoles?: string[]) {
         return next(new HttpError(401, "Invalid or expired token", "UNAUTHORIZED"));
       }
 
-      // ✅ Role-Based Access Control
-      if (allowedRoles && allowedRoles.length > 0) {
-        const userRole = (currentUser as any).role?.name?.toLowerCase();
-        
-        // Always allow 'administrator' role
-        if (userRole === 'administrator') {
-          console.log(`✅ Access granted. User is Administrator.`);
-        } else {
-          const hasPermission = allowedRoles.some(role => 
-            role.toLowerCase() === userRole
-          );
-
-          if (!hasPermission) {
-            console.log(`❌ Access denied. User role: ${userRole}, Required: ${allowedRoles.join(', ')}`);
-            return next(new HttpError(403, "Forbidden: Insufficient permissions", "FORBIDDEN"));
-          }
-
-          console.log(`✅ Access granted. User role: ${userRole}`);
-        }
-      }
-
-      // ✅ NEW: Lookup employee linked to this user
-      try {
-        const { readItems } = await import("@directus/sdk");
-        const employees: any[] = await userClient.request(
-          readItems("employees", {
-            filter: {
-              user_id: { _eq: currentUser.id }
-            },
-            limit: 1,
-          })
-        );
-
-        // Attach employee_id if found
-        if (employees && Array.isArray(employees) && employees.length > 0) {
-          (currentUser as any).employee_id = employees[0].id;
-          console.log("✅ Employee found:", employees[0].id);
-        } else {
-          console.log("⚠️ No employee linked to user:", currentUser.id);
-        }
-      } catch (empError) {
-        console.warn("Could not fetch employee:", empError);
-        // Continue anyway - some users may not be employees
-      }
-
-      // Attach user and client to request
+      // Gắn user và client vào request để sử dụng sau này
       (req as any).user = currentUser;
       (req as any).directusClient = userClient;
 

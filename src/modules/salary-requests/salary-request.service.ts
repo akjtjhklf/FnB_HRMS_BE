@@ -5,6 +5,8 @@ import {
 } from "../../core/dto/pagination.dto";
 import { SalaryRequest } from "./salary-request.model";
 import SalaryRequestRepository from "./salary-request.repository";
+import { updateItem, readItems, readItem } from "@directus/sdk";
+import { directus } from "../../utils/directusClient";
 
 import EmployeeRepository from "../employees/employee.repository";
 
@@ -26,6 +28,38 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
   async listPaginated(
     query: PaginationQueryDto
   ): Promise<PaginatedResponse<SalaryRequest>> {
+    // Search by employee name/code: Find matching employees first
+    if (query.search) {
+      try {
+        const matchingEmployees = await this.employeeRepo.findAll({
+          filter: {
+            _or: [
+              { full_name: { _contains: query.search } },
+              { employee_code: { _contains: query.search } },
+            ]
+          },
+          fields: ["id"]
+        });
+        
+        if (matchingEmployees.length > 0) {
+          const employeeFilter = matchingEmployees.map(e => e.id);
+          // Add employee filter to query
+          query.filter = query.filter || {};
+          query.filter.employee_id = { _in: employeeFilter };
+        } else {
+          // No matching employees, return empty result
+          return {
+            data: [],
+            meta: { total: 0, page: query.page || 1, limit: query.limit || 10, totalPages: 0 }
+          };
+        }
+        // Clear search to prevent further string search in repository
+        delete query.search;
+      } catch (err) {
+        console.error("⚠️ Failed to search employees:", err);
+      }
+    }
+
     const result = await (this.repo as SalaryRequestRepository).findAllPaginated(query);
 
     // Manual populate employee data
@@ -133,38 +167,70 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       );
     }
 
-    const directus = (this.repo as any).directus;
+    // Determine request type - check type field or fallback to checking proposed_rate for legacy data
+    const isRaiseRequest = request.type === "raise" || (!request.type && request.proposed_rate);
+    const isAdjustmentRequest = request.type === "adjustment" || (!request.type && request.adjustment_amount);
+
+    console.log('🔍 [SalaryRequest] Processing approval:', {
+      requestId: id,
+      type: request.type,
+      isRaiseRequest,
+      isAdjustmentRequest,
+      proposed_rate: request.proposed_rate,
+      adjustment_amount: request.adjustment_amount,
+    });
 
     // Logic xử lý khi duyệt
-    if (request.type === "raise") {
+    if (isRaiseRequest) {
       // Cập nhật contract hoặc tạo contract mới?
       // User yêu cầu: "Cập nhật lại contract hiện tại hoặc tạo contract amendment."
       // Ở đây ta cập nhật contract hiện tại (base_salary)
       
-      // Tìm contract active của employee
-      const contracts = await directus.items("contracts").readByQuery({
+      // Get employee_id as string (in case it's populated object)
+      const employeeId = typeof request.employee_id === 'object' 
+        ? (request.employee_id as any).id 
+        : request.employee_id;
+      
+      console.log('🔍 [SalaryRequest] Approving raise request:', {
+        requestId: id,
+        employeeId,
+        proposed_rate: request.proposed_rate,
+        type: request.type,
+      });
+      
+      // Tìm contract active của employee using Directus SDK
+      const readContractsReq = readItems("contracts" as any, {
         filter: {
-          employee_id: { _eq: request.employee_id },
+          employee_id: { _eq: employeeId },
           is_active: { _eq: true },
         },
         limit: 1,
       });
+      const contracts = await directus.request(readContractsReq) as any[];
       
-      const contract = contracts.data?.[0];
-      if (contract) {
-        await directus.items("contracts").update(contract.id, {
-           base_salary: request.proposed_rate,
-           // salary_scheme_id: request.proposed_scheme_id // Nếu có
+      console.log('📄 [SalaryRequest] Found contracts:', contracts);
+      
+      const contract = contracts?.[0];
+      if (contract && request.proposed_rate) {
+        console.log('✏️ [SalaryRequest] Updating contract:', contract.id, 'with base_salary:', request.proposed_rate);
+        
+        // Use Directus SDK properly
+        const updateReq = updateItem("contracts" as any, contract.id, {
+          base_salary: request.proposed_rate,
         });
+        await directus.request(updateReq);
+        
+        console.log('✅ [SalaryRequest] Contract updated successfully');
       } else {
         // Nếu không có contract, có thể log warning hoặc tạo mới (tuỳ business logic)
-        console.warn(`No active contract found for employee ${request.employee_id} to apply raise.`);
+        console.warn(`⚠️ No active contract found for employee ${employeeId} to apply raise, or proposed_rate is missing.`);
       }
       
-    } else if (request.type === "adjustment") {
+    } else if (isAdjustmentRequest) {
       // Cập nhật bảng lương
       if (request.payroll_id && request.adjustment_amount) {
-        const payroll = await directus.items("monthly_payrolls").readOne(request.payroll_id);
+        const readPayrollReq = readItem("monthly_payrolls" as any, request.payroll_id);
+        const payroll = await directus.request(readPayrollReq) as any;
         if (payroll) {
            // Cộng vào bonuses hoặc deductions tuỳ dấu?
            // Giả sử adjustment_amount có thể âm hoặc dương.
@@ -190,12 +256,13 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
            const gross_salary = (payroll.base_salary || 0) + (payroll.allowances || 0) + newBonuses + (payroll.overtime_pay || 0);
            const net_salary = gross_salary - newDeductions - (payroll.penalties || 0);
            
-           await directus.items("monthly_payrolls").update(request.payroll_id, {
+           const updatePayrollReq = updateItem("monthly_payrolls" as any, request.payroll_id, {
              bonuses: newBonuses,
              deductions: newDeductions,
              gross_salary,
              net_salary
            });
+           await directus.request(updatePayrollReq);
         }
       }
     }

@@ -1,151 +1,93 @@
-# 🚀 How to Use init.sql
+# Database Migration Instructions
 
-## Quick Start
+## ⚠️ IMPORTANT: Backup First!
 
-### 1. Create Database
-
-```bash
-mysql -u root -p
-```
-
-```sql
-CREATE DATABASE hrms_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-### 2. Run Init Script
+Before running the migration, **BACKUP YOUR DATABASE**:
 
 ```bash
-mysql -u root -p hrms_db < migrations/init.sql
+# For MySQL/MariaDB
+mysqldump -u root -p your_database_name > backup_$(date +%Y%m%d_%H%M%S).sql
 ```
 
-### 3. Verify Installation
+## Running the Migration
 
-```sql
-USE hrms_db;
-SHOW TABLES;
-SELECT * FROM directus_roles;
-SELECT * FROM positions;
-SELECT * FROM shift_types;
-```
-
----
-
-## What Gets Created
-
-### ✅ Tables (31 total)
-
-- **System**: 5 tables (roles, users, policies, permissions, files)
-- **HR**: 6 tables (employees, positions, contracts, salary schemes, requests, deductions)
-- **Schedule**: 9 tables (schedules, shifts, assignments, availability, change requests)
-- **Attendance**: 5 tables (logs, shifts, adjustments, devices, RFID cards)
-- **Payroll**: 2 tables (monthly payrolls, employee stats)
-- **Notifications**: 2 tables (notifications, logs)
-
-### ✅ Relationships
-
-- All foreign keys with proper cascading rules
-- Parent-child relationships between entities
-
-### ✅ Performance Indexes
-
-- Primary keys on all tables
-- Foreign key indexes
-- 5 composite indexes for common queries
-- Status and date indexes
-
-### ✅ Seed Data
-
-- 3 default roles (Admin, Manager, Employee)
-- 5 positions (Server, Bartender, Chef, Cashier, Host)
-- 4 shift types (Morning, Afternoon, Night, Full Day)
-
-### ✅ Database Views
-
-- `v_employee_details` - Full employee information
-- `v_active_contracts` - Active contracts with salary info
-- `v_current_month_attendance` - Current month attendance summary
-
----
-
-## Environment Variables
-
-Update your `.env`:
-
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_DATABASE=hrms_db
-DB_USER=root
-DB_PASSWORD=your_password
-
-# Directus
-DIRECTUS_URL=http://localhost:8055
-```
-
----
-
-## Reset Database (Caution!)
-
-To reset and re-initialize:
+### Method 1: Using MySQL Command Line (Recommended)
 
 ```bash
-# Drop and recreate
-mysql -u root -p -e "DROP DATABASE IF EXISTS hrms_db; CREATE DATABASE hrms_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+# Navigate to the project directory
+cd c:\Users\nguye\OneDrive\Desktop\HRMS\BE\FnB_HRMS_BE
 
-# Re-run init
-mysql -u root -p hrms_db < migrations/init.sql
+# Run the migration
+mysql -u root -p your_database_name < migrations/001_add_missing_fields.sql
 ```
 
----
+### Method 2: Using MySQL Workbench or phpMyAdmin
 
-## Database Statistics
+1. Open MySQL Workbench or phpMyAdmin
+2. Select your HRMS database
+3. Open the SQL tab
+4. Copy and paste the contents of `migrations/001_add_missing_fields.sql`
+5. Execute the script
 
-After initialization:
+### Method 3: Using Directus (If applicable)
 
-- **Total Tables**: 31
-- **Total Indexes**: ~70+ (including auto-created FK indexes)
-- **Total Views**: 3
-- **Initial Records**: ~12 (roles + positions + shift types)
+Directus may auto-detect the new fields if you restart the server after running the migration.
 
----
+## What This Migration Does
 
-## Next Steps
+### 1. `contracts` Table
+- ✅ Adds `salary_scheme_id` field (CHAR(36), nullable)
+- ✅ Creates foreign key to `salary_schemes`
+- ✅ Adds index for performance
 
-1. ✅ Run the init script
-2. Configure Directus connection
-3. Test user authentication
-4. Create your first admin user
-5. Begin adding employees
+### 2. `salary_requests` Table
+- ✅ Adds `type` enum field ('raise', 'adjustment')
+- ✅ Adds `current_scheme_id`, `proposed_scheme_id` fields
+- ✅ Adds `current_rate`, `proposed_rate` fields
+- ✅ Adds `payroll_id`, `adjustment_amount` fields
+- ✅ Adds `reason`, `manager_note` text fields
+- ✅ Updates `status` enum
+- ✅ Creates all foreign keys and indexes
 
----
+### 3. `monthly_payrolls` Table
+- ✅ Ensures `contract_id`, `salary_scheme_id` exist
+- ✅ Ensures `pay_type`, `hourly_rate` exist
+- ✅ Creates foreign keys and indexes
 
-## Troubleshooting
+### 4. `employees` Table
+- ✅ Ensures `scheme_id` exists
+- ✅ Updates `position_id` to support M2M
+- ✅ Creates foreign keys and indexes
 
-### Error: "Table already exists"
+## After Migration
 
-Switch to `DROP TABLE IF EXISTS` or reset database.
+1. **Restart Directus** (if using):
+   ```bash
+   # Stop and restart your Directus instance
+   ```
 
-### Error: "Foreign key constraint fails"
+2. **Restart Backend API**:
+   ```bash
+   cd c:\Users\nguye\OneDrive\Desktop\HRMS\BE\FnB_HRMS_BE
+   yarn dev
+   ```
 
-Ensure parent tables are created first (already handled in init.sql).
+3. **Test the changes**:
+   - Create a new contract with a salary scheme
+   - Verify the data is saved correctly
+   - Check the frontend displays properly
 
-### Error: "Access denied"
+## Rollback (If Something Goes Wrong)
 
-Check MySQL user permissions:
+If you encounter issues, restore from backup:
 
-```sql
-GRANT ALL PRIVILEGES ON hrms_db.* TO 'your_user'@'localhost';
-FLUSH PRIVILEGES;
+```bash
+mysql -u root -p your_database_name < backup_YYYYMMDD_HHMMSS.sql
 ```
 
----
+## Notes
 
-## Schema Updates
-
-For future schema changes, create migration files in `migrations/`:
-
-- `migrations/001_add_new_feature.sql`
-- `migrations/002_update_employee_fields.sql`
-- etc.
-
-Keep `init.sql` as the source of truth for fresh installations.
+- The migration uses `IF NOT EXISTS` to prevent errors if fields already exist
+- All foreign keys are set to `ON DELETE SET NULL` for data safety
+- Indexes are created for better query performance
+- A validation query runs at the end to verify all constraints

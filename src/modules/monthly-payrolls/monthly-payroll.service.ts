@@ -35,7 +35,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   }
 
   /**
-   * Lấy danh sách có phân trang - Manual Populate Employee
+   * Lấy danh sách có phân trang - Manual Populate Employee + Search by Employee Name
    */
   async listPaginated(query: PaginationQueryDto, currentUser?: any): Promise<PaginatedResponse<MonthlyPayroll>> {
     // RBAC: Nếu là nhân viên thường (không phải admin/manager), chỉ xem được lương của mình
@@ -44,6 +44,40 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       if (currentUser.employee_id) {
         query.filter = query.filter || {};
         query.filter.employee_id = { _eq: currentUser.employee_id };
+      }
+    }
+
+    // Search by employee name/code: Find matching employees first
+    let employeeFilter: string[] | null = null;
+    if (query.search) {
+      try {
+        const searchLower = query.search.toLowerCase();
+        const matchingEmployees = await this.employeeRepo.findAll({
+          filter: {
+            _or: [
+              { full_name: { _contains: query.search } },
+              { employee_code: { _contains: query.search } },
+            ]
+          },
+          fields: ["id"]
+        });
+        
+        if (matchingEmployees.length > 0) {
+          employeeFilter = matchingEmployees.map(e => e.id);
+          // Add employee filter to query
+          query.filter = query.filter || {};
+          query.filter.employee_id = { _in: employeeFilter };
+        } else {
+          // No matching employees, return empty result
+          return {
+            data: [],
+            meta: { total: 0, page: query.page || 1, limit: query.limit || 10, totalPages: 0 }
+          };
+        }
+        // Clear search to prevent further string search in repository
+        delete query.search;
+      } catch (err) {
+        console.error("⚠️ Failed to search employees:", err);
       }
     }
 

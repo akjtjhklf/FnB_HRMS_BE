@@ -65,6 +65,11 @@ export const createContract = async (
   next: NextFunction
 ) => {
   try {
+    console.log("=== CREATE CONTRACT DEBUG ===");
+    console.log("Request body (after validation):", JSON.stringify(req.body, null, 2));
+    console.log("salary_scheme_id:", req.body.salary_scheme_id);
+    console.log("============================");
+    
     const data = await service.create(req.body);
     return sendSuccess(
       res,
