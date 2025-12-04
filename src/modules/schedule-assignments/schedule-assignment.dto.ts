@@ -8,7 +8,7 @@ export const createScheduleAssignmentSchema = z.object({
   employee_id: z.uuid(),
   position_id: z.uuid(),
   assigned_by: z.uuid().nullable().optional(),
-  assigned_at: z.date().nullable().optional(),
+  assigned_at: z.coerce.date().nullable().optional(),
   status: z.enum(["assigned", "tentative", "swapped", "cancelled"]).default("assigned"),
   source: z.enum(["auto", "manual"]).default("auto"),
   note: z.string().nullable().optional(),

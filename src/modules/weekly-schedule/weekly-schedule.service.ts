@@ -174,14 +174,13 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
 
         for (const type of shiftTypes) {
           shiftsToCreate.push({
-            weekly_schedule_id: weeklySchedule.id,
+            schedule_id: weeklySchedule.id, // ✅ FIXED: Đổi từ weekly_schedule_id
             shift_type_id: type.id,
-            name: `${dayLabel} ca ${type.name} ngày ${dateStr}`,
-            shift_date: dateStr, // ✅ FIXED: Đổi từ "date" thành "shift_date"
-            start_time: type.start_time,
-            end_time: type.end_time,
-            cross_midnight: type.cross_midnight ?? false,
-            status: "draft",
+            shift_date: dateStr,
+            start_at: type.start_time, // ✅ FIXED: Đổi từ start_time
+            end_at: type.end_time, // ✅ FIXED: Đổi từ end_time
+            total_required: 3, // Default
+            notes: `${dayLabel} - Ca ${type.name}`,
           });
         }
       }

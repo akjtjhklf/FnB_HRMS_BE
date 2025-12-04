@@ -8,6 +8,8 @@ import {
  * Repository cho salary_requests
  */
 export class SalaryRequestRepository extends DirectusRepository<SalaryRequest> {
+  protected searchFields = ["reason", "note", "manager_note", "type", "status"];
+
   constructor() {
     super(SALARY_REQUESTS_COLLECTION);
   }

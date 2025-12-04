@@ -37,6 +37,10 @@ export class ContractRepository extends DirectusRepository<Contract> {
         "employee_id.*", // tất cả thông tin employee
         "employee_id.user.*", // thông tin user liên kết
         "employee_id.user.role.*", // thông tin role
+        "salary_scheme_id.*", // thông tin chế độ lương
+        "scheme_id.*", // dự phòng nếu tên field là scheme_id
+        "salary_scheme.*", // dự phòng
+        "scheme.*", // dự phòng
       ],
     };
     return super.findAllPaginated(enhancedOptions);

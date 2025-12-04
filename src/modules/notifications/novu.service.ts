@@ -199,6 +199,20 @@ export class NovuService {
   }
 
   /**
+   * Ensure a topic exists (create if not exists)
+   */
+  async ensureTopicExists(topicKey: string, topicName: string): Promise<void> {
+    try {
+      await this.createTopic(topicKey, topicName);
+    } catch (error: any) {
+      // If topic already exists, that's fine
+      if (!error?.message?.includes("already exists")) {
+        console.error("⚠️ Failed to ensure topic exists:", error?.message);
+      }
+    }
+  }
+
+  /**
    * Add subscribers to a topic
    */
   async addSubscriberToTopic(topicKey: string, subscriberIds: string[]): Promise<void> {

@@ -113,16 +113,20 @@ app.use("/api/schedule-change-requests", scheduleChangeRequestsRouter);
 
 // ⚙️ Devices & RFID
 app.use("/api/devices", devicesRouter);
-app.use("/api/device-events", deviceEventsRouter);
-app.use("/api/rfid-cards", rfidCardsRouter);
+app.use("/api/device_events", deviceEventsRouter);
+app.use("/api/rfid_cards", rfidCardsRouter);
 
 // 🔔 Notifications
 app.use("/api/notifications", notificationsRouter);
-app.use("/api/notification-logs", notificationLogsRouter);
+app.use("/api/notification_logs", notificationLogsRouter);
 
 // 🗂️ File Upload (Cloudinary + Directus)
 app.use("/api/files", filesRouter);
 app.use("/analysis", analysisRoutes);
+
+// 📊 Analytics
+import analyticsRouter from "./modules/analytics/analytics.routes";
+app.use("/api/analytics", analyticsRouter);
 
 setupSwagger(app);
 app.use(apiKeyAuth(false)); 

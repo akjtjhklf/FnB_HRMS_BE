@@ -119,6 +119,30 @@ export const deleteShift = async (
 
 /**
  * ============================================
+ * 📅 LẤY CA LÀM VIỆC HÔM NAY
+ * ============================================
+ * GET /api/shifts/today
+ */
+export const getTodayShifts = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const shifts = await service.getTodayShifts();
+    return sendSuccess(
+      res,
+      shifts,
+      200,
+      "Lấy danh sách ca làm việc hôm nay thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * ============================================
  * 📦 TẠO NHIỀU CA CÙNG LÚC - BULK CREATE
  * ============================================
  * POST /api/shifts/bulk

@@ -22,7 +22,7 @@ export class ContractService extends BaseService<Contract> {
     const mappedData = data.map((contract) => ({
       ...contract,
       employee: contract.employee_id
-        ? toEmployeeResponseDto(contract.employee_id as any) // cast nếu cần
+        ? toEmployeeResponseDto(contract.employee_id as any)
         : null,
     }));
 
@@ -50,6 +50,7 @@ export class ContractService extends BaseService<Contract> {
    * Tạo hợp đồng mới
    */
   async create(data: Partial<Contract>) {
+    console.log("Creating contract with data:", data);
     return await this.repo.create(data);
   }
 
@@ -57,6 +58,7 @@ export class ContractService extends BaseService<Contract> {
    * Cập nhật hợp đồng
    */
   async update(id: string, data: Partial<Contract>) {
+    console.log(`Updating contract ${id} with data:`, data);
     const existing = await this.repo.findById(id);
     if (!existing)
       throw new HttpError(404, "Không tìm thấy hợp đồng", "CONTRACT_NOT_FOUND");

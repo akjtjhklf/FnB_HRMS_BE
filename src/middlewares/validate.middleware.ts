@@ -65,3 +65,37 @@ export function validateBody(schema: ZodTypeAny) {
     next();
   };
 }
+
+/**
+ * Middleware validate query parameters bằng Zod schema
+ * @param schema - Zod schema dùng để kiểm tra query params
+ */
+export function validateQuery(schema: ZodTypeAny) {
+  return (
+    req: Request,
+    _res: Response<ApiResponse<unknown>>,
+    next: NextFunction
+  ) => {
+    const result = schema.safeParse(req.query);
+
+    if (!result.success) {
+      const formattedErrors = result.error.issues.map((err) => ({
+        path: err.path.join("."),
+        message: err.message,
+      }));
+
+      return next(
+        new HttpError(
+          400,
+          "Query parameters không hợp lệ",
+          "VALIDATION_ERROR",
+          formattedErrors
+        )
+      );
+    }
+
+    // Gán lại query đã parse
+    req.query = result.data as any;
+    next();
+  };
+}

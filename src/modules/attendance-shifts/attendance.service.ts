@@ -4,6 +4,7 @@ import AttendanceShiftRepository from "./attendance-shift.repository";
 import ScheduleAssignmentRepository from "../schedule-assignments/schedule-assignment.repository";
 import ShiftRepository from "../shifts/shift.repository";
 import EmployeeRepository from "../employees/employee.repository";
+import { dateUtil, now, startOfDay, endOfDay } from "../../core/date.util";
 
 /**
  * Attendance Service - Core business logic for check-in/check-out
@@ -36,7 +37,7 @@ export class AttendanceService extends BaseService<AttendanceShift> {
     location?: string;
     rfidCardId?: string;
   }) {
-    const now = new Date();
+    const currentTime = now();
     const assignmentId = options?.assignmentId;
 
     // Find today's assignment for this employee
@@ -48,10 +49,8 @@ export class AttendanceService extends BaseService<AttendanceShift> {
       }
     } else {
       // Find current shift assignment for employee
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
+      const todayStart = startOfDay().toDate();
+      const todayEnd = endOfDay().toDate();
 
       // Query assignments for today
       const assignments = await this.assignmentRepo.findAll({
@@ -65,7 +64,7 @@ export class AttendanceService extends BaseService<AttendanceShift> {
       for (const assign of assignments) {
         const shift = await this.shiftRepo.findById(assign.shift_id);
         if (shift) {
-          const shiftDate = new Date(shift.shift_date);
+          const shiftDate = dateUtil(shift.shift_date).toDate();
           if (shiftDate >= todayStart && shiftDate <= todayEnd) {
             assignment = assign;
             break;
@@ -94,15 +93,25 @@ export class AttendanceService extends BaseService<AttendanceShift> {
     if (!shift) {
       throw new HttpError(404, "Không tìm thấy ca làm việc", "SHIFT_NOT_FOUND");
     }
+    console.log("!!! DEBUG !!! checkIn - shift:", JSON.stringify(shift));
 
     // Calculate late minutes
-    const shiftStart = new Date(`${shift.shift_date}T${shift.start_at}`);
-    const lateMinutes = Math.max(0, Math.floor((now.getTime() - shiftStart.getTime()) / 1000 / 60));
+    let shiftStart;
+    if (shift.start_at && (shift.start_at.includes("T") || shift.start_at.includes(" "))) {
+        shiftStart = dateUtil.tz(shift.start_at, "Asia/Ho_Chi_Minh");
+    } else {
+        shiftStart = dateUtil.tz(`${shift.shift_date}T${shift.start_at}`, "Asia/Ho_Chi_Minh");
+    }
+    console.log("!!! DEBUG !!! checkIn - shiftStart:", shiftStart.format());
+    console.log("!!! DEBUG !!! checkIn - currentTime:", currentTime.format());
+    
+    const lateMinutes = Math.max(0, Math.floor(currentTime.diff(shiftStart, "minute")));
+    console.log("!!! DEBUG !!! checkIn - lateMinutes:", lateMinutes);
 
     // Create or update attendance record
     if (existing) {
       return await this.repo.update(existing.id, {
-        clock_in: now.toISOString(),
+        clock_in: currentTime.format("YYYY-MM-DD HH:mm:ss"), // Force wall-clock time
         late_minutes: lateMinutes,
         status: "partial",
       });
@@ -111,7 +120,7 @@ export class AttendanceService extends BaseService<AttendanceShift> {
         schedule_assignment_id: assignment.id,
         shift_id: assignment.shift_id,
         employee_id: employeeId,
-        clock_in: now.toISOString(),
+        clock_in: currentTime.format("YYYY-MM-DD HH:mm:ss"), // Force wall-clock time
         late_minutes: lateMinutes,
         status: "partial",
         manual_adjusted: false,
@@ -124,7 +133,7 @@ export class AttendanceService extends BaseService<AttendanceShift> {
    * Employee checks out from their shift
    */
   async checkOut(employeeId: string, assignmentId?: string) {
-    const now = new Date();
+    const currentTime = now();
 
     // Find attendance record
     let attendance;
@@ -162,22 +171,36 @@ export class AttendanceService extends BaseService<AttendanceShift> {
     if (!shift) {
       throw new HttpError(404, "Không tìm thấy ca làm việc", "SHIFT_NOT_FOUND");
     }
+    console.log("!!! DEBUG !!! checkOut - shift:", JSON.stringify(shift));
 
     // Calculate worked minutes and early leave
-    const clockIn = new Date(attendance.clock_in!);
-    const workedMinutes = Math.floor((now.getTime() - clockIn.getTime()) / 1000 / 60);
+    // Parse clock_in as VN time (since we save it as VN time now)
+    const clockIn = dateUtil.tz(attendance.clock_in!, "Asia/Ho_Chi_Minh");
+    console.log("!!! DEBUG !!! checkOut - clockIn (VN):", clockIn.format());
+    console.log("!!! DEBUG !!! checkOut - currentTime:", currentTime.format());
 
-    const shiftEnd = new Date(`${shift.shift_date}T${shift.end_at}`);
-    const earlyLeaveMinutes = Math.max(0, Math.floor((shiftEnd.getTime() - now.getTime()) / 1000 / 60));
+    const workedMinutes = Math.floor(currentTime.diff(clockIn, "minute"));
+    console.log("!!! DEBUG !!! checkOut - workedMinutes:", workedMinutes);
+
+    let shiftEnd;
+    if (shift.end_at && (shift.end_at.includes("T") || shift.end_at.includes(" "))) {
+        shiftEnd = dateUtil.tz(shift.end_at, "Asia/Ho_Chi_Minh");
+    } else {
+        shiftEnd = dateUtil.tz(`${shift.shift_date}T${shift.end_at}`, "Asia/Ho_Chi_Minh");
+    }
+    console.log("!!! DEBUG !!! checkOut - shiftEnd:", shiftEnd.format());
+
+    const earlyLeaveMinutes = Math.max(0, Math.floor(shiftEnd.diff(currentTime, "minute")));
+    console.log("!!! DEBUG !!! checkOut - earlyLeaveMinutes:", earlyLeaveMinutes);
 
     // Determine status
-    let status: "present" | "partial" | "absent" = "present";
-    if (earlyLeaveMinutes > 30 || (attendance.late_minutes || 0) > 30) {
-      status = "partial";
+    let status = attendance.status;
+    if (status === "partial") {
+      status = "present";
     }
 
     return await this.repo.update(attendance.id, {
-      clock_out: now.toISOString(),
+      clock_out: currentTime.format("YYYY-MM-DD HH:mm:ss"), // Force wall-clock time
       worked_minutes: workedMinutes,
       early_leave_minutes: earlyLeaveMinutes,
       status,
@@ -194,6 +217,12 @@ export class AttendanceService extends BaseService<AttendanceShift> {
         created_at: { _between: [startDate, endDate] },
       },
       sort: ["-created_at"],
+      fields: [
+        "*",
+        "shift_id.*",
+        "shift_id.shift_type.id",
+        "shift_id.shift_type.name",
+      ],
     });
   }
 
@@ -228,17 +257,17 @@ export class AttendanceService extends BaseService<AttendanceShift> {
 
     // Recalculate worked minutes if both exist
     if (updates.clock_in && updates.clock_out) {
-      const start = new Date(updates.clock_in);
-      const end = new Date(updates.clock_out);
-      updates.worked_minutes = Math.floor((end.getTime() - start.getTime()) / 1000 / 60);
+      const start = dateUtil(updates.clock_in);
+      const end = dateUtil(updates.clock_out);
+      updates.worked_minutes = Math.floor(end.diff(start, "minute"));
     } else if (updates.clock_in && record.clock_out) {
-        const start = new Date(updates.clock_in);
-        const end = new Date(record.clock_out);
-        updates.worked_minutes = Math.floor((end.getTime() - start.getTime()) / 1000 / 60);
+        const start = dateUtil(updates.clock_in);
+        const end = dateUtil(record.clock_out);
+        updates.worked_minutes = Math.floor(end.diff(start, "minute"));
     } else if (record.clock_in && updates.clock_out) {
-        const start = new Date(record.clock_in);
-        const end = new Date(updates.clock_out);
-        updates.worked_minutes = Math.floor((end.getTime() - start.getTime()) / 1000 / 60);
+        const start = dateUtil(record.clock_in);
+        const end = dateUtil(updates.clock_out);
+        updates.worked_minutes = Math.floor(end.diff(start, "minute"));
     }
 
     return await this.repo.update(attendanceId, updates);
@@ -248,15 +277,16 @@ export class AttendanceService extends BaseService<AttendanceShift> {
    * Get monthly attendance report for all employees
    */
   async getMonthlyReport(month: number, year: number) {
-    // Calculate start and end of month
-    const startDate = new Date(year, month - 1, 1).toISOString();
-    const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+    // Calculate start and end of month in VN time
+    const startDate = dateUtil().year(year).month(month - 1).startOf("month").format("YYYY-MM-DD HH:mm:ss");
+    const endDate = dateUtil().year(year).month(month - 1).endOf("month").format("YYYY-MM-DD HH:mm:ss");
 
     // 1. Fetch all active employees
     const employees = await this.employeeRepo.findAll({
-      filter: { status: { _eq: "published" } }, // Assuming 'published' is active status in Directus
+      filter: { status: { _eq: "active" } },
       limit: 1000, // Fetch all
     });
+    console.log(`[AttendanceReport] Found ${employees.length} active employees for report.`);
 
     // 2. Fetch all attendance records for the month
     const attendanceRecords = await this.repo.findAll({

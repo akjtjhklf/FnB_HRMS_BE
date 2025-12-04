@@ -65,6 +65,11 @@ export const createContract = async (
   next: NextFunction
 ) => {
   try {
+    console.log("=== CREATE CONTRACT DEBUG ===");
+    console.log("Request body (after validation):", JSON.stringify(req.body, null, 2));
+    console.log("salary_scheme_id:", req.body.salary_scheme_id);
+    console.log("============================");
+    
     const data = await service.create(req.body);
     return sendSuccess(
       res,
@@ -87,7 +92,18 @@ export const updateContract = async (
 ) => {
   try {
     const id = String(req.params.id);
+    
+    console.log("=== UPDATE CONTRACT DEBUG ===");
+    console.log("Contract ID:", id);
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
+    console.log("salary_scheme_id trong body:", req.body.salary_scheme_id);
+    
     const data = await service.update(id, req.body);
+    
+    console.log("Data sau khi update:", JSON.stringify(data, null, 2));
+    console.log("salary_scheme_id sau update:", data.salary_scheme_id);
+    console.log("============================");
+    
     return sendSuccess(
       res,
       toContractResponseDto(data),

@@ -5,6 +5,7 @@ import {
 } from "../../core/dto/pagination.dto";
 import { EmployeeAvailability } from "./employee-availability.model";
 import EmployeeAvailabilityRepository from "./employee-availability.repository";
+import { createItem } from "@directus/sdk";
 
 export class EmployeeAvailabilityService extends BaseService<EmployeeAvailability> {
   constructor(repo = new EmployeeAvailabilityRepository()) {
@@ -56,15 +57,15 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
 
     // Step 2: Nếu có positions, tạo employee-availability-positions records
     if (positions && positions.length > 0) {
-      const directusClient = (this.repo as any).directus;
+      const client = (this.repo as any).client;
       
-      const positionRecords = positions.map((positionId, index) => ({
-        availability_id: availability.id,
-        position_id: positionId,
-        preference_order: index + 1
-      }));
-
-      await directusClient.items("employee_availability_positions").createMany(positionRecords);
+      for (let i = 0; i < positions.length; i++) {
+        await client.request((createItem as any)('employee_availability_positions', {
+          availability_id: availability.id,
+          position_id: positions[i],
+          preference_order: i + 1
+        }));
+      }
     }
 
     return availability;
@@ -91,14 +92,8 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
         "EMPLOYEE_AVAILABILITY_NOT_FOUND"
       );
 
-    // Cascade delete: xóa employee_availability_positions
-    const directusClient = (this.repo as any).directus;
-    
-    await directusClient.items("employee_availability_positions").delete({
-      filter: { availability_id: { _eq: id } }
-    });
-    
-    // Cuối cùng xóa employee_availability
+    // Cascade delete is handled by the repository based on relationships.config.ts
+    // employee_availability -> employee_availability_positions
     await this.repo.delete(id);
   }
 }

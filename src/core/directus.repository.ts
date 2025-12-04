@@ -38,8 +38,10 @@ export class DirectusRepository<
    */
   protected buildPaginationQueryParams(query: PaginationQueryDto): any {
     const page = Math.max(1, Number(query.page) || 1);
-    const limit = Math.max(1, Number(query.limit) || 10);
-    const offset = (page - 1) * limit;
+    // Support limit=-1 to fetch all records (Directus convention)
+    const rawLimit = Number(query.limit);
+    const limit = rawLimit === -1 ? -1 : Math.max(1, rawLimit || 10);
+    const offset = limit === -1 ? 0 : (page - 1) * limit;
 
     // Build search filter
     const searchFilter = buildSearchFilter(query.search, this.searchFields);
@@ -145,12 +147,13 @@ export class DirectusRepository<
       const allIds = await this.client.request(allIdsReq);
 
       const total = Array.isArray(allIds) ? allIds.length : 0;
-      const totalPages = Math.ceil(total / limit);
+      // When limit is -1 (all records), totalPages is 1
+      const totalPages = limit === -1 ? 1 : Math.ceil(total / limit);
 
       return {
         data: (items ?? []) as T[],
         meta: {
-          page,
+          page: limit === -1 ? 1 : page,
           limit,
           total,
           totalPages,
@@ -219,10 +222,28 @@ export class DirectusRepository<
    */
   async create(data: Partial<T>): Promise<T> {
     try {
+      console.log(`📝 [${this.collection}] Creating item with data:`, JSON.stringify(data, null, 2));
+      
       const createReq: any = (createItem as any)(this.collection as any, data);
       const created = await this.client.request(createReq);
+      
+      console.log(`✅ [${this.collection}] Created item:`, JSON.stringify(created, null, 2));
+      
+      // Check if any fields were lost
+      const sentKeys = Object.keys(data);
+      const receivedKeys = Object.keys(created || {});
+      const lostKeys = sentKeys.filter(key => !(key in (created || {})));
+      
+      if (lostKeys.length > 0) {
+        console.warn(`⚠️  [${this.collection}] Fields NOT saved:`, lostKeys);
+        lostKeys.forEach(key => {
+          console.warn(`   - ${key}: ${JSON.stringify((data as any)[key])}`);
+        });
+      }
+      
       return created as T;
     } catch (error: any) {
+      console.error(`❌ [${this.collection}] Create error:`, error);
       throw new HttpError(
         500,
         "Không thể tạo mới dữ liệu",

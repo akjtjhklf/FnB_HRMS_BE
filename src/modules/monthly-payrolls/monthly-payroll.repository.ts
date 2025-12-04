@@ -69,10 +69,15 @@ export class MonthlyPayrollRepository extends DirectusRepository<MonthlyPayroll>
    * Override findAllPaginated để luôn populate relations
    */
   async findAllPaginated(options: any): Promise<{ data: MonthlyPayroll[]; meta: any }> {
-    // Always add fields for relations
+    // ALWAYS force populate employee and salary scheme - ignore client fields
     const enhancedOptions = {
       ...options,
-      fields: options.fields || ["*", "employee_id.*", "salary_scheme_id.*"],
+      fields: [
+        "*",
+        "employee_id.*",  // ALWAYS fetch full employee
+        "salary_scheme_id.*"  // ALWAYS fetch full salary scheme
+      ],
+      deep: {}, // CRITICAL: Enable deep querying to populate nested relations
     };
     return super.findAllPaginated(enhancedOptions);
   }

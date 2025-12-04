@@ -3,10 +3,9 @@ export interface Notification {
   title: string;
   message: string;
   action_url?: string | null;
-  recipient_type: "ALL" | "DEPARTMENT" | "SPECIFIC";
+  recipient_type: "ALL" | "SPECIFIC";
   status: "draft" | "scheduled" | "sent" | "failed";
-  department_ids?: string | null; // JSON array
-  user_ids?: string | null; // JSON array
+  user_ids?: string | null; // JSON array of employee IDs
   scheduled_at?: string | null;
   sent_at?: string | null;
   created_by?: string | null;
@@ -25,6 +24,5 @@ export const NOTIFICATION_STATUS = {
 
 export const RECIPIENT_TYPE = {
   ALL: "ALL",
-  DEPARTMENT: "DEPARTMENT",
   SPECIFIC: "SPECIFIC",
 } as const;
