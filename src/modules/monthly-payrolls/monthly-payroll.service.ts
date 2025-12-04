@@ -4,26 +4,15 @@ import MonthlyPayrollRepository from "./monthly-payroll.repository";
 import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 import { readItems } from "@directus/sdk";
 import EmployeeRepository from "../employees/employee.repository";
-import { NovuService } from "../notifications/novu.service";
-import { NotificationLogRepository } from "../notifications/notification-log.repository";
+import { getNotificationHelper } from "../notifications";
 
 export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   declare repo: MonthlyPayrollRepository;
   private employeeRepo: EmployeeRepository;
-  private novuService?: NovuService;
   
   constructor(repo = new MonthlyPayrollRepository()) {
     super(repo);
     this.employeeRepo = new EmployeeRepository();
-    
-    // Initialize Novu service
-    const novuApiKey = process.env.NOVU_API_KEY || "";
-    if (novuApiKey) {
-      this.novuService = new NovuService(
-        { apiKey: novuApiKey },
-        new NotificationLogRepository()
-      );
-    }
   }
 
   /**
@@ -279,7 +268,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   }
 
   /**
-   * Đánh dấu đã thanh toán
+   * Đánh dấu đã thanh toán và gửi notification cho nhân viên
    */
   async markAsPaid(id: string) {
     const payroll = await this.repo.findById(id);
@@ -295,11 +284,70 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       );
     }
 
-    return await this.repo.update(id, {
+    const updated = await this.repo.update(id, {
       status: "paid",
       paid_at: new Date().toISOString(),
     });
+
+    // Send notification to employee about payslip
+    try {
+      const employeeId = typeof payroll.employee_id === 'object' 
+        ? (payroll.employee_id as any).id 
+        : payroll.employee_id;
+      
+      if (employeeId && payroll.month) {
+        const notificationHelper = getNotificationHelper();
+        const [year, month] = payroll.month.split('-').map(Number);
+        
+        await notificationHelper.notifyPayslipReady(employeeId, {
+          month,
+          year,
+          payslipId: id,
+        });
+        console.log(`✅ Payslip notification sent to employee: ${employeeId}`);
+      }
+    } catch (notifyErr) {
+      console.error('⚠️ Failed to send payslip notification:', notifyErr);
+    }
+
+    return updated;
   }
+
+  /**
+   * Gửi thông báo phiếu lương cho nhiều nhân viên (batch)
+   */
+  async notifyPayslipsBatch(payrollIds: string[]) {
+    const notificationHelper = getNotificationHelper();
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of payrollIds) {
+      try {
+        const payroll = await this.repo.findById(id);
+        if (!payroll || payroll.status !== "paid") continue;
+
+        const employeeId = typeof payroll.employee_id === 'object' 
+          ? (payroll.employee_id as any).id 
+          : payroll.employee_id;
+        
+        if (employeeId && payroll.month) {
+          const [year, month] = payroll.month.split('-').map(Number);
+          await notificationHelper.notifyPayslipReady(employeeId, {
+            month,
+            year,
+            payslipId: id,
+          });
+          successCount++;
+        }
+      } catch (err) {
+        failCount++;
+        console.error(`Failed to notify for payroll ${id}:`, err);
+      }
+    }
+
+    return { successCount, failCount, total: payrollIds.length };
+  }
+
   /**
    * Tạo bảng lương cho một tháng (tích hợp với attendance)
    */
@@ -516,10 +564,6 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       throw new HttpError(404, "Không tìm thấy bảng lương", "PAYROLL_NOT_FOUND");
     }
 
-    if (!this.novuService) {
-      throw new HttpError(500, "Novu service not configured", "NOVU_NOT_CONFIGURED");
-    }
-
     // Get employee info
     const employeeId = typeof payroll.employee_id === 'object' 
       ? (payroll.employee_id as any).id 
@@ -530,37 +574,21 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       throw new HttpError(404, "Không tìm thấy nhân viên", "EMPLOYEE_NOT_FOUND");
     }
 
-    // Format currency
-    const formatCurrency = (amount: number) => {
-      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount || 0);
-    };
-
-    // Prepare payload
-    const payload = {
-      employeeName: employee.full_name,
-      month: payroll.month,
-      baseSalary: formatCurrency(payroll.base_salary || 0),
-      allowances: formatCurrency(payroll.allowances || 0),
-      bonuses: formatCurrency(payroll.bonuses || 0),
-      overtimePay: formatCurrency(payroll.overtime_pay || 0),
-      grossSalary: formatCurrency(payroll.gross_salary || 0),
-      deductions: formatCurrency(payroll.deductions || 0),
-      penalties: formatCurrency(payroll.penalties || 0),
-      netSalary: formatCurrency(payroll.net_salary || 0),
-      totalWorkHours: payroll.total_work_hours || 0,
-      payrollId: payroll.id,
-    };
+    if (!payroll.month) {
+      throw new HttpError(400, "Phiếu lương không có thông tin tháng", "INVALID_PAYROLL");
+    }
 
     try {
-      // Send in-app notification via Novu
-      await this.novuService.sendToUser({
-        subscriberId: employeeId,
-        workflowId: "payslip-notification", // Workflow ID in Novu
-        payload,
-        triggeredBy: sentBy || "system",
+      const [year, month] = payroll.month.split('-').map(Number);
+      const notificationHelper = getNotificationHelper();
+      
+      await notificationHelper.notifyPayslipReady(employeeId, {
+        month,
+        year,
+        payslipId: id,
       });
 
-      console.log(`✅ Payslip sent to employee ${employee.full_name} (${employeeId})`);
+      console.log(`✅ Payslip notification sent to employee ${employee.full_name} (${employeeId})`);
 
       return {
         success: true,
@@ -659,7 +687,15 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       updateData.notes = options.note;
     }
 
-    return await this.repo.update(id, updateData);
+    await this.repo.update(id, updateData);
+    
+    // Fetch lại để đảm bảo trả về data mới nhất (Directus update không luôn trả về fresh data)
+    const updatedPayroll = await this.repo.findById(id);
+    if (!updatedPayroll) {
+      throw new HttpError(404, "Không tìm thấy bảng lương sau khi cập nhật", "PAYROLL_NOT_FOUND");
+    }
+    
+    return updatedPayroll;
   }
 
   /**

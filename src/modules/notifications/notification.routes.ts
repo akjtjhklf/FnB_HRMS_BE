@@ -52,4 +52,11 @@ router.post(
   controller.scheduleNotification
 );
 
+// Sync subscribers to Novu - admin only
+router.post(
+  "/sync-subscribers",
+  checkPermission("notifications", "create"),
+  controller.syncSubscribers
+);
+
 export default router;

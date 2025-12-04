@@ -6,9 +6,12 @@ import {
 import { ScheduleChangeRequest } from "./schedule-change-request.model";
 import ScheduleChangeRequestRepository from "./schedule-change-request.repository";
 import ScheduleAssignmentRepository from "../schedule-assignments/schedule-assignment.repository";
+import { getNotificationHelper, NotificationType } from "../notifications";
+import EmployeeRepository from "../employees/employee.repository";
 
 export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequest> {
   private assignmentRepo: ScheduleAssignmentRepository;
+  private employeeRepo: EmployeeRepository;
 
   constructor(
     repo = new ScheduleChangeRequestRepository(),
@@ -16,6 +19,7 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
   ) {
     super(repo);
     this.assignmentRepo = assignmentRepo;
+    this.employeeRepo = new EmployeeRepository();
   }
 
   async list(query?: Record<string, unknown>) {
@@ -38,7 +42,29 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
   }
 
   async create(data: Partial<ScheduleChangeRequest>) {
-    return await this.repo.create(data);
+    const created = await this.repo.create(data);
+
+    // Send notification to managers about new request
+    try {
+      const employeeId = data.requester_id as string;
+      if (employeeId) {
+        const employee = await this.employeeRepo.findById(employeeId);
+        const notificationHelper = getNotificationHelper();
+        
+        await notificationHelper.notifyManagers({
+          type: NotificationType.LEAVE_REQUEST,
+          title: "Yêu cầu thay đổi lịch làm việc",
+          message: `${employee?.full_name || 'Nhân viên'} đã gửi yêu cầu ${data.type === 'shift_swap' ? 'đổi ca' : 'nghỉ phép'}`,
+          actionUrl: `/schedule-requests/${created.id}`,
+          data: { requestId: created.id, employeeId },
+          departmentId: (employee as any)?.department_id,
+        });
+      }
+    } catch (notifyErr) {
+      console.error('⚠️ Failed to send schedule request notification:', notifyErr);
+    }
+
+    return created;
   }
 
   async update(id: string, data: Partial<ScheduleChangeRequest>) {
@@ -103,10 +129,39 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
       approved_at: new Date().toISOString(),
     });
 
+    // Send notification to employee
+    await this.notifyRequestResult(updatedRequest, true);
+
     return {
       request: updatedRequest,
       swap_result: swapResult,
     };
+  }
+
+  /**
+   * Send notification to employee about request result
+   */
+  private async notifyRequestResult(request: ScheduleChangeRequest, approved: boolean) {
+    try {
+      const employeeId = typeof request.requester_id === 'object' 
+        ? (request.requester_id as any).id 
+        : request.requester_id;
+      
+      if (employeeId) {
+        const notificationHelper = getNotificationHelper();
+        await notificationHelper.notifyEmployee(employeeId, {
+          type: approved ? NotificationType.LEAVE_APPROVED : NotificationType.LEAVE_REJECTED,
+          title: approved ? "Yêu cầu được duyệt" : "Yêu cầu bị từ chối",
+          message: approved 
+            ? "Yêu cầu thay đổi lịch làm việc của bạn đã được duyệt"
+            : "Yêu cầu thay đổi lịch làm việc của bạn đã bị từ chối",
+          actionUrl: `/schedule-requests/${request.id}`,
+          data: { requestId: request.id, approved },
+        });
+      }
+    } catch (notifyErr) {
+      console.error('⚠️ Failed to send request result notification:', notifyErr);
+    }
   }
 
   /**
@@ -165,12 +220,17 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
       );
     }
 
-    return await this.repo.update(requestId, {
+    const updatedRequest = await this.repo.update(requestId, {
       status: "rejected",
       approved_by: rejectedBy,
       approved_at: new Date().toISOString(),
       reason: reason || request.reason,
     });
+
+    // Send notification to employee
+    await this.notifyRequestResult(updatedRequest, false);
+
+    return updatedRequest;
   }
 }
 

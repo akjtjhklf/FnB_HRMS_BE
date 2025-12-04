@@ -7,6 +7,7 @@ import { SalaryRequest } from "./salary-request.model";
 import SalaryRequestRepository from "./salary-request.repository";
 import { updateItem, readItems, readItem } from "@directus/sdk";
 import { directus } from "../../utils/directusClient";
+import { getNotificationHelper, NotificationType } from "../notifications";
 
 import EmployeeRepository from "../employees/employee.repository";
 
@@ -50,7 +51,7 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
           // No matching employees, return empty result
           return {
             data: [],
-            meta: { total: 0, page: query.page || 1, limit: query.limit || 10, totalPages: 0 }
+            meta: { total: 0, page: Number(query.page) || 1, limit: Number(query.limit) || 10, totalPages: 0 }
           };
         }
         // Clear search to prevent further string search in repository
@@ -79,7 +80,7 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
 
           const employeeMap = new Map(employees.map(e => [e.id, e]));
 
-          result.data = result.data.map(request => {
+          (result.data as any[]) = result.data.map(request => {
             if (typeof request.employee_id === 'string') {
               const emp = employeeMap.get(request.employee_id);
               if (emp) {
@@ -158,7 +159,29 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       data.employee_id = myEmployeeId;
     }
 
-    return await this.repo.create(data);
+    const created = await this.repo.create(data);
+
+    // Send notification to managers
+    try {
+      const employee = data.employee_id 
+        ? await this.employeeRepo.findById(data.employee_id as string)
+        : null;
+      
+      if (employee) {
+        const notificationHelper = getNotificationHelper();
+        await notificationHelper.notifySalaryIncreaseRequest(
+          employee.id!,
+          employee.full_name || 'Nhân viên',
+          created.id!,
+          employee.department_id ?? undefined
+        );
+      }
+    } catch (notifyErr) {
+      console.error('⚠️ Failed to send notification:', notifyErr);
+      // Don't fail the request if notification fails
+    }
+
+    return created;
   }
 
   /**
@@ -242,7 +265,8 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       });
       
       // Tìm contract active của employee using Directus SDK
-      const readContractsReq = readItems("contracts" as any, {
+      // @ts-ignore - Directus SDK type issue with dynamic collection names
+      const readContractsReq = readItems("contracts", {
         filter: {
           employee_id: { _eq: employeeId },
           is_active: { _eq: true },
@@ -258,7 +282,8 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
         console.log('✏️ [SalaryRequest] Updating contract:', contract.id, 'with base_salary:', request.proposed_rate);
         
         // Use Directus SDK properly
-        const updateReq = updateItem("contracts" as any, contract.id, {
+        // @ts-ignore - Directus SDK type issue with dynamic collection names
+        const updateReq = updateItem("contracts", contract.id, {
           base_salary: request.proposed_rate,
         });
         await directus.request(updateReq);
@@ -272,7 +297,8 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
     } else if (isAdjustmentRequest) {
       // Cập nhật bảng lương
       if (request.payroll_id && request.adjustment_amount) {
-        const readPayrollReq = readItem("monthly_payrolls" as any, request.payroll_id);
+        // @ts-ignore - Directus SDK type issue with dynamic collection names
+        const readPayrollReq = readItem("monthly_payrolls", request.payroll_id);
         const payroll = await directus.request(readPayrollReq) as any;
         if (payroll) {
            // Cộng vào bonuses hoặc deductions tuỳ dấu?
@@ -299,7 +325,8 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
            const gross_salary = (payroll.base_salary || 0) + (payroll.allowances || 0) + newBonuses + (payroll.overtime_pay || 0);
            const net_salary = gross_salary - newDeductions - (payroll.penalties || 0);
            
-           const updatePayrollReq = updateItem("monthly_payrolls" as any, request.payroll_id, {
+           // @ts-ignore - Directus SDK type issue with dynamic collection names
+           const updatePayrollReq = updateItem("monthly_payrolls", request.payroll_id, {
              bonuses: newBonuses,
              deductions: newDeductions,
              gross_salary,
@@ -310,12 +337,32 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       }
     }
 
-    return await this.repo.update(id, {
+    const updatedRequest = await this.repo.update(id, {
       status: "approved",
       approved_by,
       approved_at: new Date().toISOString(),
       manager_note,
     });
+
+    // Send notification to employee about approval
+    try {
+      const employeeId = typeof request.employee_id === 'object' 
+        ? (request.employee_id as any).id 
+        : request.employee_id;
+      
+      if (employeeId) {
+        const notificationHelper = getNotificationHelper();
+        await notificationHelper.notifySalaryRequestResult(
+          employeeId,
+          true, // approved
+          id
+        );
+      }
+    } catch (notifyErr) {
+      console.error('⚠️ Failed to send approval notification:', notifyErr);
+    }
+
+    return updatedRequest;
   }
 
   /**
@@ -338,13 +385,33 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       );
     }
 
-    return await this.repo.update(id, {
+    const updatedRequest = await this.repo.update(id, {
       status: "rejected",
       approved_by: rejected_by, // Reuse approved_by for rejected_by or add new field? 
       // Model only has approved_by. Let's use it as "action_by".
       approved_at: new Date().toISOString(),
       manager_note,
     });
+
+    // Send notification to employee about rejection
+    try {
+      const employeeId = typeof request.employee_id === 'object' 
+        ? (request.employee_id as any).id 
+        : request.employee_id;
+      
+      if (employeeId) {
+        const notificationHelper = getNotificationHelper();
+        await notificationHelper.notifySalaryRequestResult(
+          employeeId,
+          false, // rejected
+          id
+        );
+      }
+    } catch (notifyErr) {
+      console.error('⚠️ Failed to send rejection notification:', notifyErr);
+    }
+
+    return updatedRequest;
   }
 }
 

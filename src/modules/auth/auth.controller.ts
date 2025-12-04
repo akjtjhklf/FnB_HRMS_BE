@@ -58,11 +58,10 @@ export const refresh = async (
 
     console.log("🔄 Attempting to refresh token with:", refresh_token.substring(0, 20) + "...");
 
-    // Try using Directus SDK instead of direct fetch
     const directusUrl = process.env.DIRECTUS_URL;
     
-    // Option 1: Try with mode: 'json'
-    let refreshResponse = await fetch(`${directusUrl}/auth/refresh`, {
+    // Use json mode for Directus refresh - this is the standard way
+    const refreshResponse = await fetch(`${directusUrl}/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,29 +72,15 @@ export const refresh = async (
       })
     });
 
-    // If json mode fails, try cookie mode
-    if (!refreshResponse.ok) {
-      console.log("⚠️ JSON mode failed, trying cookie mode...");
-      refreshResponse = await fetch(`${directusUrl}/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cookie': `directus_refresh_token=${refresh_token}`
-        },
-        body: JSON.stringify({
-          mode: 'cookie'
-        })
-      });
-    }
-
     if (!refreshResponse.ok) {
       const errorData = await refreshResponse.json();
       console.error("❌ Directus refresh failed:", errorData);
       
-      // Check if it's an expired token error
+      // Check if it's an expired/invalid token error
       const errorMessage = errorData?.errors?.[0]?.message || '';
       if (errorMessage.includes('Invalid') || errorMessage.includes('expired')) {
-        console.log("🔐 Token expired - user needs to login again");
+        console.log("🔐 Token expired or invalid - user needs to login again");
+        // Return 401 to trigger logout on FE
         return sendError(res, "Session expired. Please log in again.", 401);
       }
       
@@ -103,13 +88,13 @@ export const refresh = async (
     }
 
     const data = await refreshResponse.json();
-    console.log("📦 Refresh response:", data);
+    console.log("📦 Refresh response received");
     
-    const token = data.data?.access_token || data.access_token;
-    const new_refresh_token = data.data?.refresh_token || data.refresh_token;
+    const token = data.data?.access_token;
+    const new_refresh_token = data.data?.refresh_token;
 
     if (!token || !new_refresh_token) {
-      console.error("❌ Invalid response structure from Directus");
+      console.error("❌ Invalid response structure from Directus:", data);
       return sendError(res, "Invalid refresh response", 500);
     }
 

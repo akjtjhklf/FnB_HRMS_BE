@@ -5,6 +5,7 @@ import NotificationService from "./notification.service";
 import NotificationRepository from "./notification.repository";
 import NovuService from "./novu.service";
 import NotificationLogRepository from "./notification-log.repository";
+import { EmployeeRepository } from "../employees/employee.repository";
 
 const service = new NotificationService(
   new NotificationRepository(),
@@ -17,8 +18,11 @@ const service = new NotificationService(
   )
 );
 
+const TOPIC_ALL_EMPLOYEES = "all-employees";
+
 /**
  * POST /notifications
+ * If send_immediately=true in body, will also send via Novu after creating
  */
 export const createNotification = async (
   req: Request,
@@ -31,10 +35,30 @@ export const createNotification = async (
       throw new HttpError(401, "Unauthorized");
     }
 
-    const notification = await service.createNotification({
-      ...req.body,
+    // Map body to message if provided (FE may send body instead of message)
+    // Map recipient_ids to user_ids (FE uses recipient_ids, BE model uses user_ids)
+    const { body, message, send_immediately, recipient_ids, ...rest } = req.body;
+    const notificationData = {
+      ...rest,
+      message: message || body, // Accept both 'message' and 'body'
+      user_ids: recipient_ids ? JSON.stringify(recipient_ids) : null, // Convert array to JSON string
       created_by: userId,
-    });
+    };
+
+    const notification = await service.createNotification(notificationData);
+
+    // Auto-send if requested
+    if (send_immediately !== false) {
+      try {
+        const workflowId = process.env.NOVU_DEFAULT_WORKFLOW || "in-app-notification";
+        const sentNotification = await service.sendNotification(notification.id!, workflowId);
+        return sendSuccess(res, sentNotification, 201, "Notification created and sent");
+      } catch (sendError: any) {
+        console.error("⚠️ Failed to send notification:", sendError?.message);
+        // Return created notification even if send failed
+        return sendSuccess(res, notification, 201, "Notification created but failed to send");
+      }
+    }
 
     return sendSuccess(res, notification, 201, "Notification created");
   } catch (err) {
@@ -51,19 +75,29 @@ export const getNotifications = async (
   next: NextFunction
 ) => {
   try {
-    const { page = "1", limit = "10", status } = req.query;
+    const { page = "1", limit = "10", status, sort } = req.query;
 
     const filter: any = {};
     if (status) filter.status = { _eq: status };
 
-    const notifications = await service["repo"].findAll({
+    // Use findAllPaginated to match FE data provider format
+    const repo = service["repo"] as NotificationRepository;
+    const result = await repo.findAllPaginated({
       filter,
       limit: parseInt(limit as string),
       page: parseInt(page as string),
-      sort: ["-created_at"],
+      sort: sort as string || "-created_at",
     });
 
-    return sendSuccess(res, notifications);
+    // Return in format expected by FE data provider:
+    // { data: { items: [...], total: N, page, limit, total_pages } }
+    return sendSuccess(res, {
+      items: result.data,
+      total: result.meta.total,
+      page: result.meta.page,
+      limit: result.meta.limit,
+      total_pages: result.meta.totalPages,
+    });
   } catch (err) {
     next(err);
   }
@@ -129,10 +163,8 @@ export const sendNotificationNow = async (
   next: NextFunction
 ) => {
   try {
-    const { workflow_id } = req.body;
-    if (!workflow_id) {
-      throw new HttpError(400, "workflow_id is required");
-    }
+    // Use default workflow if not provided
+    const workflow_id = req.body.workflow_id || process.env.NOVU_DEFAULT_WORKFLOW || "in-app-notification";
 
     const notification = await service.sendNotification(req.params.id, workflow_id);
     return sendSuccess(res, notification, 200, "Notification sent");
@@ -157,6 +189,75 @@ export const scheduleNotification = async (
 
     const notification = await service.scheduleNotification(req.params.id, scheduled_at);
     return sendSuccess(res, notification, 200, "Notification scheduled");
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /notifications/sync-subscribers
+ * Sync all employees to Novu as subscribers and add to "all-employees" topic
+ */
+export const syncSubscribers = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const employeeRepo = new EmployeeRepository();
+    const novuService = service["novuService"] as NovuService;
+
+    // Get all active employees
+    const employees = await employeeRepo.findAll({
+      filter: { status: { _eq: 'active' } },
+      fields: ['id', 'full_name', 'first_name', 'last_name', 'email', 'phone', 'photo_url']
+    });
+
+    let successCount = 0;
+    let errorCount = 0;
+    const subscriberIds: string[] = [];
+
+    // Create/update subscribers
+    for (const emp of employees) {
+      try {
+        await novuService.createSubscriber({
+          subscriberId: emp.id,
+          email: emp.email || '',
+          firstName: emp.first_name || emp.full_name?.split(' ')[0],
+          lastName: emp.last_name || emp.full_name?.split(' ').slice(1).join(' '),
+          phone: emp.phone || undefined,
+          avatar: emp.photo_url || undefined,
+          data: {
+            employeeId: emp.id,
+            fullName: emp.full_name,
+          }
+        });
+        subscriberIds.push(emp.id);
+        successCount++;
+      } catch (error: any) {
+        errorCount++;
+        console.error(`Failed to sync subscriber ${emp.id}:`, error?.message);
+      }
+    }
+
+    // Ensure topic exists
+    await novuService.ensureTopicExists(TOPIC_ALL_EMPLOYEES, "All Employees");
+
+    // Add subscribers to topic
+    if (subscriberIds.length > 0) {
+      try {
+        await novuService.addSubscriberToTopic(TOPIC_ALL_EMPLOYEES, subscriberIds);
+      } catch (error: any) {
+        console.error("Failed to add subscribers to topic:", error?.message);
+      }
+    }
+
+    return sendSuccess(res, {
+      total: employees.length,
+      synced: successCount,
+      failed: errorCount,
+      topic: TOPIC_ALL_EMPLOYEES,
+    }, 200, `Synced ${successCount}/${employees.length} subscribers`);
   } catch (err) {
     next(err);
   }

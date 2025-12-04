@@ -21,14 +21,18 @@ export class NotificationService extends BaseService<Notification> {
   async createNotification(
     data: Omit<Notification, "id" | "status" | "created_at" | "updated_at">
   ): Promise<Notification> {
+    // Normalize recipient_type to uppercase
+    const normalizedRecipientType = data.recipient_type?.toUpperCase() as Notification["recipient_type"];
+    
     // Validate recipient type
-    if (!Object.values(RECIPIENT_TYPE).includes(data.recipient_type)) {
-      throw new HttpError(400, "Invalid recipient type");
+    if (!Object.values(RECIPIENT_TYPE).includes(normalizedRecipientType)) {
+      throw new HttpError(400, "Invalid recipient type. Must be 'ALL' or 'SPECIFIC'");
     }
 
     return await this.repo.create({
       id: randomUUID(),
       ...data,
+      recipient_type: normalizedRecipientType,
       status: NOTIFICATION_STATUS.DRAFT,
     });
   }
