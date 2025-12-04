@@ -99,18 +99,32 @@ export class ShiftService extends BaseService<Shift> {
     // Create a map for quick lookup
     const shiftTypeMap = new Map(shiftTypes.map((st: any) => [st.id, st]));
 
-    // Process shifts: DON'T send start_at/end_at for bulk create
-    // These are DATETIME fields in Directus but we only have TIME values
-    // Let Directus handle these based on shift_type relationship
+    // Process shifts: Convert time strings to full datetime for DATETIME fields
     const processedShifts = shifts.map((shift, index) => {
+      const shiftDate = shift.shift_date || ''; // YYYY-MM-DD
+      const shiftType = shiftTypeMap.get(shift.shift_type_id);
+      
+      // Get time from shift or fallback to shift_type
+      const startTime = shift.start_at || shiftType?.start_time;
+      const endTime = shift.end_at || shiftType?.end_time;
+      
+      // Convert HH:mm:ss to full datetime (YYYY-MM-DD HH:mm:ss)
+      const formatDatetime = (date: string, time: string | undefined | null): string | null => {
+        if (!time || !date) return null;
+        // If already has date component, return as-is
+        if (time.includes('T') || time.includes('-')) return time;
+        // Otherwise, combine date + time
+        return `${date} ${time}`;
+      };
+      
       return {
         schedule_id: shift.schedule_id,
         shift_type_id: shift.shift_type_id,
-        shift_date: shift.shift_date,
+        shift_date: shiftDate,
+        start_at: formatDatetime(shiftDate, startTime),
+        end_at: formatDatetime(shiftDate, endTime),
         total_required: shift.total_required,
         notes: shift.notes,
-        // OMIT start_at and end_at - they're DATETIME fields but we only have TIME
-        // Directus will reject HH:mm:ss format for DATETIME fields
       };
     });
 

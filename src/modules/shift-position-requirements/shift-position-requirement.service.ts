@@ -48,6 +48,25 @@ export class ShiftPositionRequirementService extends BaseService<ShiftPositionRe
   }
 
   async createBulk(items: Partial<ShiftPositionRequirement>[]) {
+    // Extract unique shift IDs from items
+    const shiftIds = Array.from(new Set(items.map(item => item.shift_id).filter(Boolean))) as string[];
+    
+    if (shiftIds.length > 0) {
+      // Delete existing requirements for these shifts first to avoid duplicates
+      console.log(`🧹 Deleting existing requirements for ${shiftIds.length} shifts`);
+      
+      // Find existing requirements for these shifts
+      const existingReqs = await this.repo.findAll({
+        filter: { shift_id: { _in: shiftIds } }
+      });
+      
+      // Delete them one by one (or use deleteMany if available)
+      for (const req of existingReqs) {
+        await this.repo.delete(req.id);
+      }
+      console.log(`✅ Deleted ${existingReqs.length} existing requirements`);
+    }
+    
     return await (this.repo as ShiftPositionRequirementRepository).createMany(items);
   }
 

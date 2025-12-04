@@ -590,6 +590,129 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
 
     return results;
   }
+
+  /**
+   * Thay đổi trạng thái phiếu lương (Admin/Manager only)
+   * Cho phép chuyển đổi linh hoạt giữa các trạng thái
+   */
+  async changeStatus(
+    id: string, 
+    newStatus: MonthlyPayroll["status"], 
+    options?: { 
+      approved_by?: string; 
+      note?: string;
+      force?: boolean; // Bỏ qua validation status flow
+    }
+  ): Promise<MonthlyPayroll> {
+    const payroll = await this.repo.findById(id);
+    if (!payroll) {
+      throw new HttpError(404, "Không tìm thấy bảng lương", "PAYROLL_NOT_FOUND");
+    }
+
+    const currentStatus = payroll.status || "draft";
+    
+    // Define valid transitions (unless force=true)
+    const validTransitions: Record<string, string[]> = {
+      draft: ["pending_approval", "approved"], // draft có thể chuyển thẳng sang approved
+      pending_approval: ["draft", "approved", "paid"],
+      approved: ["pending_approval", "paid", "draft"], // Có thể quay lại nếu cần
+      paid: ["approved"], // Paid chỉ có thể quay lại approved (hoàn tiền)
+    };
+
+    // Check valid transition (unless force=true)
+    if (!options?.force) {
+      const allowedNext = validTransitions[currentStatus] || [];
+      if (!allowedNext.includes(newStatus)) {
+        throw new HttpError(
+          400,
+          `Không thể chuyển từ trạng thái "${currentStatus}" sang "${newStatus}"`,
+          "INVALID_STATUS_TRANSITION"
+        );
+      }
+    }
+
+    // Build update data
+    const updateData: Partial<MonthlyPayroll> = {
+      status: newStatus,
+    };
+
+    // Add timestamp and approver based on new status
+    if (newStatus === "approved") {
+      updateData.approved_at = new Date().toISOString();
+      if (options?.approved_by) {
+        updateData.approved_by = options.approved_by;
+      }
+    } else if (newStatus === "paid") {
+      updateData.paid_at = new Date().toISOString();
+    } else if (newStatus === "draft") {
+      // Reset approval info when going back to draft
+      updateData.approved_at = null;
+      updateData.approved_by = null;
+      updateData.paid_at = null;
+    } else if (newStatus === "pending_approval") {
+      // Reset paid_at when going back to pending
+      updateData.paid_at = null;
+    }
+
+    // Add note if provided
+    if (options?.note) {
+      updateData.notes = options.note;
+    }
+
+    return await this.repo.update(id, updateData);
+  }
+
+  /**
+   * Thay đổi trạng thái hàng loạt
+   */
+  async changeStatusBulk(
+    ids: string[], 
+    newStatus: MonthlyPayroll["status"],
+    options?: { approved_by?: string; force?: boolean }
+  ): Promise<{ success: number; failed: number; errors: Array<{ id: string; error: string }> }> {
+    const results = { success: 0, failed: 0, errors: [] as Array<{ id: string; error: string }> };
+
+    for (const id of ids) {
+      try {
+        await this.changeStatus(id, newStatus, options);
+        results.success++;
+      } catch (error: any) {
+        results.failed++;
+        results.errors.push({ id, error: error?.message || "Unknown error" });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Lấy thống kê theo trạng thái
+   */
+  async getStatusStats(month?: string): Promise<Record<string, number>> {
+    const filter: any = {};
+    if (month) {
+      filter.month = { _eq: month };
+    }
+
+    const payrolls = await this.repo.findAll({ filter });
+    
+    const stats: Record<string, number> = {
+      draft: 0,
+      pending_approval: 0,
+      approved: 0,
+      paid: 0,
+      total: payrolls.length,
+    };
+
+    for (const p of payrolls) {
+      const status = p.status || "draft";
+      if (stats[status] !== undefined) {
+        stats[status]++;
+      }
+    }
+
+    return stats;
+  }
 }
 
 export default MonthlyPayrollService;

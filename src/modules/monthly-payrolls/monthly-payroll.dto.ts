@@ -66,7 +66,7 @@ export const toMonthlyPayrollResponseDto = (
   late_penalty: entity.late_penalty ?? null,
   early_leave_penalty: entity.early_leave_penalty ?? null,
   notes: entity.notes ?? null,
-  status: entity.status,
+  status: entity.status ?? "draft", // Default to "draft" if undefined
   approved_by: entity.approved_by ?? null,
   approved_at: entity.approved_at ?? null,
   paid_at: entity.paid_at ?? null,

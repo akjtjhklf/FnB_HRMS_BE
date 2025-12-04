@@ -221,6 +221,109 @@ export const unlockMonthlyPayroll = async (
 };
 
 /**
+ * Thay đổi trạng thái phiếu lương (linh hoạt)
+ */
+export const changePayrollStatus = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { status, note, force } = req.body;
+    const currentUser = (req as any).user;
+    
+    if (!status) {
+      return sendError(res, "Trạng thái mới là bắt buộc", 400);
+    }
+
+    const validStatuses = ["draft", "pending_approval", "approved", "paid"];
+    if (!validStatuses.includes(status)) {
+      return sendError(res, `Trạng thái không hợp lệ. Các trạng thái hợp lệ: ${validStatuses.join(", ")}`, 400);
+    }
+
+    const data = await service.changeStatus(req.params.id, status, {
+      approved_by: currentUser?.id,
+      note,
+      force: force === true,
+    });
+
+    const statusMessages: Record<string, string> = {
+      draft: "Đã chuyển về trạng thái nháp",
+      pending_approval: "Đã chuyển sang chờ duyệt",
+      approved: "Đã duyệt bảng lương",
+      paid: "Đã đánh dấu đã thanh toán",
+    };
+
+    return sendSuccess(
+      res,
+      toMonthlyPayrollResponseDto(data),
+      200,
+      statusMessages[status] || "Cập nhật trạng thái thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Thay đổi trạng thái hàng loạt
+ */
+export const changePayrollStatusBulk = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { ids, status, force } = req.body;
+    const currentUser = (req as any).user;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return sendError(res, "Danh sách ID bảng lương là bắt buộc", 400);
+    }
+
+    if (!status) {
+      return sendError(res, "Trạng thái mới là bắt buộc", 400);
+    }
+
+    const validStatuses = ["draft", "pending_approval", "approved", "paid"];
+    if (!validStatuses.includes(status)) {
+      return sendError(res, `Trạng thái không hợp lệ`, 400);
+    }
+
+    const result = await service.changeStatusBulk(ids, status, {
+      approved_by: currentUser?.id,
+      force: force === true,
+    });
+
+    return sendSuccess(
+      res,
+      result,
+      200,
+      `Đã cập nhật ${result.success}/${ids.length} bảng lương`
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Lấy thống kê theo trạng thái
+ */
+export const getPayrollStatusStats = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { month } = req.query;
+    const stats = await service.getStatusStats(month as string | undefined);
+    return sendSuccess(res, stats, 200, "Lấy thống kê thành công");
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Gửi phiếu lương qua Novu (in-app notification)
  */
 export const sendPayslip = async (
