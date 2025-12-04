@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { HttpError } from "../core/base";
 import { ApiResponse } from "../core/response";
-import { createDirectus, rest, staticToken, readMe, authentication } from "@directus/sdk";
+import { createDirectus, rest, staticToken, readMe, readItems, authentication } from "@directus/sdk";
 
 // Optional stub: validate API key if provided
 export function apiKeyAuth(optional = true) {
@@ -65,8 +65,30 @@ export function requireAuth() {
         return next(new HttpError(401, "Invalid or expired token", "UNAUTHORIZED"));
       }
 
+      // Tìm employee_id nếu user chưa có
+      let employeeId = (currentUser as any).employee_id;
+      if (!employeeId) {
+        try {
+          const employees = await userClient.request(
+            readItems<any, any, any>("employees", {
+              filter: { user_id: { _eq: (currentUser as any).id } },
+              fields: ["id"] as any,
+              limit: 1,
+            })
+          );
+          if (employees && employees.length > 0) {
+            employeeId = employees[0].id;
+          }
+        } catch (error) {
+          console.error("❌ Error fetching employee by user_id:", error);
+        }
+      }
+
       // Gắn user và client vào request để sử dụng sau này
-      (req as any).user = currentUser;
+      (req as any).user = {
+        ...currentUser,
+        employee_id: employeeId,
+      };
       (req as any).directusClient = userClient;
 
       next();
