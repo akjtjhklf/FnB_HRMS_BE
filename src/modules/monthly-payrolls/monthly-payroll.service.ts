@@ -155,10 +155,36 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   }
 
   async get(id: string) {
-    const payroll = await this.repo.findById(id);
+    // Use findOne with fields to populate relations
+    const payroll = await this.repo.findOne({
+      filter: { id: { _eq: id } },
+      fields: ["*", "employee_id.*", "salary_scheme_id.*"],
+    });
+    
     if (!payroll) {
       throw new HttpError(404, "Không tìm thấy bảng lương", "PAYROLL_NOT_FOUND");
     }
+    
+    // Handle employee population
+    if (payroll.employee_id && typeof payroll.employee_id === 'object') {
+      // Already populated by Directus
+      (payroll as any).employee = payroll.employee_id;
+    } else if (payroll.employee_id && typeof payroll.employee_id === 'string') {
+      // Not populated, fetch employee manually
+      try {
+        const employee = await this.employeeRepo.findById(payroll.employee_id);
+        if (employee) {
+          (payroll as any).employee = {
+            id: employee.id,
+            full_name: employee.full_name,
+            employee_code: employee.employee_code,
+          };
+        }
+      } catch (err) {
+        console.error("⚠️ Failed to fetch employee for payroll:", err);
+      }
+    }
+    
     return payroll;
   }
 
@@ -687,12 +713,25 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       updateData.notes = options.note;
     }
 
+    console.log(`🔄 Updating payroll ${id} status from "${currentStatus}" to "${newStatus}"`);
+    console.log(`📝 Update data:`, JSON.stringify(updateData, null, 2));
+
+    // Perform update
     await this.repo.update(id, updateData);
     
-    // Fetch lại để đảm bảo trả về data mới nhất (Directus update không luôn trả về fresh data)
+    // IMPORTANT: Fetch fresh data after update because Directus SDK may return stale data
     const updatedPayroll = await this.repo.findById(id);
+    
+    console.log(`✅ After update - status in DB: "${updatedPayroll?.status}"`);
+    
     if (!updatedPayroll) {
       throw new HttpError(404, "Không tìm thấy bảng lương sau khi cập nhật", "PAYROLL_NOT_FOUND");
+    }
+
+    // Verify update was successful
+    if (updatedPayroll.status !== newStatus) {
+      console.error(`❌ Update verification failed! Expected: "${newStatus}", Got: "${updatedPayroll.status}"`);
+      throw new HttpError(500, "Cập nhật trạng thái không thành công", "UPDATE_FAILED");
     }
     
     return updatedPayroll;

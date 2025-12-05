@@ -8,6 +8,12 @@ const router = Router();
 // All routes require authentication
 router.use(requireAuth());
 
+// Mark all notifications as read - must be before /:id routes
+router.post(
+  "/mark-all-read",
+  controller.markAllAsRead
+);
+
 // CRUD operations - only admins/managers
 router.post(
   "/",
@@ -50,6 +56,12 @@ router.post(
   "/:id/schedule",
   checkPermission("notifications", "update"),
   controller.scheduleNotification
+);
+
+// Mark as read - any authenticated user
+router.post(
+  "/:id/read",
+  controller.markAsRead
 );
 
 // Sync subscribers to Novu - admin only
