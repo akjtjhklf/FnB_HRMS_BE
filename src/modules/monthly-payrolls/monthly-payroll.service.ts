@@ -687,12 +687,25 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       updateData.notes = options.note;
     }
 
+    console.log(`🔄 Updating payroll ${id} status from "${currentStatus}" to "${newStatus}"`);
+    console.log(`📝 Update data:`, JSON.stringify(updateData, null, 2));
+
+    // Perform update
     await this.repo.update(id, updateData);
     
-    // Fetch lại để đảm bảo trả về data mới nhất (Directus update không luôn trả về fresh data)
+    // IMPORTANT: Fetch fresh data after update because Directus SDK may return stale data
     const updatedPayroll = await this.repo.findById(id);
+    
+    console.log(`✅ After update - status in DB: "${updatedPayroll?.status}"`);
+    
     if (!updatedPayroll) {
       throw new HttpError(404, "Không tìm thấy bảng lương sau khi cập nhật", "PAYROLL_NOT_FOUND");
+    }
+
+    // Verify update was successful
+    if (updatedPayroll.status !== newStatus) {
+      console.error(`❌ Update verification failed! Expected: "${newStatus}", Got: "${updatedPayroll.status}"`);
+      throw new HttpError(500, "Cập nhật trạng thái không thành công", "UPDATE_FAILED");
     }
     
     return updatedPayroll;

@@ -258,10 +258,13 @@ export class DirectusRepository<
    */
   async update(id: Identifier, data: Partial<T>): Promise<T> {
     try {
+      console.log(`📝 [${this.collection}] Updating item ${id} with data:`, JSON.stringify(data, null, 2));
       const updateReq: any = (updateItem as any)(this.collection as any, id, data);
       const updated = await this.client.request(updateReq);
+      console.log(`✅ [${this.collection}] Update result:`, JSON.stringify(updated, null, 2));
       return updated as T;
     } catch (error: any) {
+      console.error(`❌ [${this.collection}] Update failed:`, error?.message || error);
       throw new HttpError(
         500,
         "Không thể cập nhật dữ liệu",
