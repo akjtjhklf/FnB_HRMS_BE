@@ -397,7 +397,7 @@ export class NotificationHelperService {
       type: NotificationType.PAYSLIP_READY,
       title: `Phiếu lương tháng ${payslipData.month}/${payslipData.year}`,
       message: "Phiếu lương của bạn đã sẵn sàng để xem",
-      actionUrl: `/payslips/${payslipData.payslipId}`,
+      actionUrl: `/salary/${payslipData.payslipId}/view`,
       data: payslipData,
     });
   }

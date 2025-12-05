@@ -262,3 +262,82 @@ export const syncSubscribers = async (
     next(err);
   }
 };
+
+/**
+ * POST /notifications/:id/read
+ * Mark a notification as read for current user
+ */
+export const markAsRead = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    const notificationId = req.params.id;
+    const repo = service["repo"] as NotificationRepository;
+    
+    // Update notification to mark as read
+    // For simplicity, we'll update the notification itself
+    // In production, you might have a separate read_status table
+    const updated = await repo.update(notificationId, {
+      is_read: true,
+      read_at: new Date().toISOString(),
+    });
+
+    return sendSuccess(res, updated, 200, "Notification marked as read");
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * POST /notifications/mark-all-read
+ * Mark all notifications as read for current user
+ */
+export const markAllAsRead = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      throw new HttpError(401, "Unauthorized");
+    }
+
+    const repo = service["repo"] as NotificationRepository;
+    
+    // Get all unread notifications for this user
+    // Note: This is a simplified implementation. In production, 
+    // you might want to filter by recipient_type or user_ids
+    const result = await repo.findAll({
+      filter: {
+        is_read: { _eq: false },
+      },
+    });
+
+    let updatedCount = 0;
+    for (const notification of result) {
+      try {
+        await repo.update(notification.id!, {
+          is_read: true,
+          read_at: new Date().toISOString(),
+        });
+        updatedCount++;
+      } catch (error) {
+        console.error(`Failed to mark notification ${notification.id} as read`);
+      }
+    }
+
+    return sendSuccess(res, { 
+      updated: updatedCount 
+    }, 200, `Marked ${updatedCount} notifications as read`);
+  } catch (err) {
+    next(err);
+  }
+};

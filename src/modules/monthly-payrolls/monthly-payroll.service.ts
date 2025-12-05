@@ -155,10 +155,36 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   }
 
   async get(id: string) {
-    const payroll = await this.repo.findById(id);
+    // Use findOne with fields to populate relations
+    const payroll = await this.repo.findOne({
+      filter: { id: { _eq: id } },
+      fields: ["*", "employee_id.*", "salary_scheme_id.*"],
+    });
+    
     if (!payroll) {
       throw new HttpError(404, "Không tìm thấy bảng lương", "PAYROLL_NOT_FOUND");
     }
+    
+    // Handle employee population
+    if (payroll.employee_id && typeof payroll.employee_id === 'object') {
+      // Already populated by Directus
+      (payroll as any).employee = payroll.employee_id;
+    } else if (payroll.employee_id && typeof payroll.employee_id === 'string') {
+      // Not populated, fetch employee manually
+      try {
+        const employee = await this.employeeRepo.findById(payroll.employee_id);
+        if (employee) {
+          (payroll as any).employee = {
+            id: employee.id,
+            full_name: employee.full_name,
+            employee_code: employee.employee_code,
+          };
+        }
+      } catch (err) {
+        console.error("⚠️ Failed to fetch employee for payroll:", err);
+      }
+    }
+    
     return payroll;
   }
 
