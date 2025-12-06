@@ -71,7 +71,7 @@ export const toUserResponseDto = (entity: User): UserResponseDto => ({
   email: entity.email,
   first_name: entity.first_name ?? null,
   last_name: entity.last_name ?? null,
-  role: entity.role ?? null, // Keep as-is (can be string or object)
+  role: entity.role as any ?? null, // Keep as-is (can be string or object)
   status: entity.status,
   last_access: entity.last_access ?? null,
   language: entity.language ?? null,

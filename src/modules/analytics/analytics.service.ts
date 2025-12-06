@@ -773,3 +773,226 @@ export const getEmployeePerformanceRanking = async (
 
   return performances.slice(0, limit);
 };
+
+/**
+ * Get Recent Activities
+ * Hoạt động gần đây trên dashboard
+ */
+export interface RecentActivity {
+  id: string;
+  action: string;
+  actor: string;
+  time: string;
+}
+
+export const getRecentActivities = async (limit: number = 5): Promise<RecentActivity[]> => {
+  try {
+    const activities: RecentActivity[] = [];
+
+    // Helper to get employee name by ID
+    const getEmployeeName = async (employeeId: string): Promise<string> => {
+      if (!employeeId) return 'Hệ thống';
+      try {
+        const employees = await directus.request(
+          readItems(EMPLOYEES_COLLECTION, {
+            filter: { id: { _eq: employeeId } },
+            fields: ['full_name', 'first_name', 'last_name'],
+            limit: 1,
+          })
+        );
+        if (employees.length > 0) {
+          const emp = employees[0] as any;
+          return emp.full_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || 'Unknown';
+        }
+      } catch (e) {
+        // ignore
+      }
+      return 'Unknown';
+    };
+
+    // Helper to get user name by ID
+    const getUserName = async (userId: string): Promise<string> => {
+      if (!userId) return 'Hệ thống';
+      try {
+        const users = await directus.request(
+          readItems('directus_users' as any, {
+            filter: { id: { _eq: userId } },
+            fields: ['first_name', 'last_name', 'email'],
+            limit: 1,
+          })
+        );
+        if (users.length > 0) {
+          const user = users[0] as any;
+          if (user.first_name || user.last_name) {
+            return `${user.first_name || ''} ${user.last_name || ''}`.trim();
+          }
+          return user.email || 'Admin';
+        }
+      } catch (e) {
+        // ignore
+      }
+      return 'Admin';
+    };
+
+    // 1. Get recent employees (newly created)
+    try {
+      const recentEmployees = await directus.request(
+        readItems(EMPLOYEES_COLLECTION, {
+          fields: ['id', 'full_name', 'first_name', 'last_name', 'created_at'],
+          sort: ['-created_at'],
+          limit: 5,
+        })
+      );
+      for (const emp of recentEmployees as any[]) {
+        const name = emp.full_name || `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
+        activities.push({
+          id: `emp_${emp.id}`,
+          action: `Thêm nhân viên mới: ${name}`,
+          actor: 'Admin',
+          time: emp.created_at,
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Error fetching employees:', e);
+    }
+
+    // 2. Get recent contracts
+    try {
+      const recentContracts = await directus.request(
+        readItems('contracts' as any, {
+          fields: ['id', 'employee_id', 'created_at', 'contract_type'],
+          sort: ['-created_at'],
+          limit: 5,
+        })
+      );
+      for (const contract of recentContracts as any[]) {
+        const empName = await getEmployeeName(contract.employee_id);
+        activities.push({
+          id: `contract_${contract.id}`,
+          action: `Tạo hợp đồng ${contract.contract_type || ''} cho ${empName}`,
+          actor: 'Admin',
+          time: contract.created_at,
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Error fetching contracts:', e);
+    }
+
+    // 3. Get recent monthly payrolls
+    try {
+      const recentPayrolls = await directus.request(
+        readItems('monthly_payrolls' as any, {
+          fields: ['id', 'employee_id', 'month', 'status', 'created_at', 'updated_at', 'approved_by'],
+          sort: ['-updated_at'],
+          limit: 5,
+        })
+      );
+      for (const payroll of recentPayrolls as any[]) {
+        const empName = await getEmployeeName(payroll.employee_id);
+        let action = `Tạo phiếu lương tháng ${payroll.month} cho ${empName}`;
+        let actor = 'Admin';
+        
+        if (payroll.status === 'approved') {
+          action = `Duyệt phiếu lương tháng ${payroll.month} của ${empName}`;
+          if (payroll.approved_by) {
+            actor = await getUserName(payroll.approved_by);
+          }
+        } else if (payroll.status === 'sent') {
+          action = `Gửi phiếu lương tháng ${payroll.month} cho ${empName}`;
+        }
+        
+        activities.push({
+          id: `payroll_${payroll.id}`,
+          action,
+          actor,
+          time: payroll.updated_at || payroll.created_at,
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Error fetching payrolls:', e);
+    }
+
+    // 4. Get recent salary requests
+    try {
+      const salaryRequests = await directus.request(
+        readItems(SALARY_REQUESTS_COLLECTION, {
+          fields: ['id', 'employee_id', 'request_type', 'status', 'created_at'],
+          sort: ['-created_at'],
+          limit: 5,
+        })
+      );
+      for (const req of salaryRequests as any[]) {
+        const empName = await getEmployeeName(req.employee_id);
+        activities.push({
+          id: `salary_req_${req.id}`,
+          action: `Yêu cầu ${req.request_type || 'điều chỉnh lương'} từ ${empName}`,
+          actor: empName,
+          time: req.created_at,
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Error fetching salary requests:', e);
+    }
+
+    // 5. Get recent schedule change requests
+    try {
+      const scheduleRequests = await directus.request(
+        readItems(SCHEDULE_CHANGE_REQUESTS_COLLECTION, {
+          fields: ['id', 'employee_id', 'status', 'reason', 'created_at'],
+          sort: ['-created_at'],
+          limit: 5,
+        })
+      );
+      for (const req of scheduleRequests as any[]) {
+        const empName = await getEmployeeName(req.employee_id);
+        activities.push({
+          id: `schedule_req_${req.id}`,
+          action: `Yêu cầu đổi ca: ${req.reason || 'Không có lý do'}`,
+          actor: empName,
+          time: req.created_at,
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Error fetching schedule requests:', e);
+    }
+
+    // 6. Get recent attendance logs
+    try {
+      const attendanceLogs = await directus.request(
+        readItems(ATTENDANCE_LOGS_COLLECTION, {
+          fields: ['id', 'employee_id', 'event_type', 'event_time'],
+          sort: ['-event_time'],
+          limit: 5,
+        })
+      );
+      for (const log of attendanceLogs as any[]) {
+        const empName = await getEmployeeName(log.employee_id);
+        const action = log.event_type === 'clock_in' ? 'Check-in' : 
+                       log.event_type === 'clock_out' ? 'Check-out' : 
+                       log.event_type;
+        activities.push({
+          id: `attendance_${log.id}`,
+          action: `${action}`,
+          actor: empName,
+          time: log.event_time,
+        });
+      }
+    } catch (e) {
+      console.log('⚠️ Error fetching attendance logs:', e);
+    }
+
+    // Sort all activities by time desc
+    activities.sort((a, b) => {
+      const timeA = a.time ? new Date(a.time).getTime() : 0;
+      const timeB = b.time ? new Date(b.time).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    console.log(`✅ Total activities collected: ${activities.length}`);
+
+    return activities.slice(0, limit);
+  } catch (error) {
+    console.error('❌ Error getting recent activities:', error);
+    return [];
+  }
+};

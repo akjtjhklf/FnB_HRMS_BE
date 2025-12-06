@@ -6,7 +6,8 @@
         "build": "tsc -p tsconfig.json",
         "start": "node dist/server.js",
         "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-        "seed": "ts-node src/seed.ts"
+        "seed": "ts-node src/seed.ts",
+        "seed:schedule": "ts-node scripts/seed-complete-schedule-payroll.ts"
     },
     "dependencies": {
         "@directus/sdk": "^20.2.0",
