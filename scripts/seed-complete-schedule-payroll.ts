@@ -37,8 +37,8 @@
  */
 
 import 'dotenv/config';
-import { directus, ensureAuth } from '../src/utils/directusClient';
-import { createItems, readMe, readItems, deleteItems } from '@directus/sdk';
+import { directus, ensureAuth, getAuthToken } from '../src/utils/directusClient';
+import { createItems, readMe, readItems, deleteItems, createRole, readRoles, createUser, updateUser } from '@directus/sdk';
 import { randomUUID } from 'crypto';
 
 // ============================================================================
@@ -262,7 +262,13 @@ async function seedComplete() {
       
       if (newEmployees.length > 0) {
         const created = await directus.request(createItems('employees', newEmployees));
-        employees = [...employees, ...created];
+        console.log(`   📊 Created ${created.length} new employees`);
+        // Reload all employees to get complete data
+        employees = await directus.request(readItems('employees', { 
+          limit: -1, 
+          fields: ['id', 'employee_code', 'first_name', 'last_name', 'full_name', 'email', 'status'],
+          filter: { status: { _eq: 'active' } }
+        }));
       }
     }
     
@@ -301,6 +307,204 @@ async function seedComplete() {
     
     const contracts = existingContracts;
     console.log(`   ✅ Using ${contracts.length} contracts`);
+
+    // ========================================================================
+    // PHASE 2.5: SEED ROLE & POLICY FOR EMPLOYEES
+    // ========================================================================
+    console.log('\n🔐 PHASE 2.5: Seeding Role & Policy for Employees...\n');
+    
+    const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+    const token = await getAuthToken();
+    
+    // 2.5.1 Check/Create Role "Employee"
+    console.log('   👔 Getting/Creating Employee Role...');
+    let employeeRole: any = null;
+    
+    // Check existing roles
+    const existingRoles: any[] = await directus.request(readRoles());
+    employeeRole = existingRoles.find((r: any) => r.name === 'Employee');
+    
+    if (!employeeRole) {
+      // Create Employee role via API
+      const roleResponse = await fetch(`${directusUrl}/roles`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Employee',
+          icon: 'badge',
+          description: 'Vai trò dành cho nhân viên - có quyền xem và chỉnh sửa thông tin cá nhân, đăng ký ca làm việc',
+          app_access: true,
+          admin_access: false,
+        }),
+      });
+      
+      if (!roleResponse.ok) {
+        throw new Error(`Failed to create role: ${await roleResponse.text()}`);
+      }
+      
+      const roleData = await roleResponse.json();
+      employeeRole = roleData.data;
+      console.log(`   ✅ Created Employee role: ${employeeRole.id}`);
+    } else {
+      console.log(`   ✅ Found existing Employee role: ${employeeRole.id}`);
+    }
+    
+    // 2.5.2 Check/Create Policy "Employee"
+    console.log('   📜 Getting/Creating Employee Policy...');
+    let employeePolicy: any = null;
+    
+    // Check existing policies
+    const policiesResponse = await fetch(`${directusUrl}/policies`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (policiesResponse.ok) {
+      const policiesData = await policiesResponse.json();
+      employeePolicy = policiesData.data?.find((p: any) => p.name === 'Employee');
+    }
+    
+    if (!employeePolicy) {
+      // Create Employee policy
+      const policyResponse = await fetch(`${directusUrl}/policies`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Employee',
+          icon: 'verified_user',
+          description: 'Chính sách dành cho nhân viên - quyền hạn cơ bản để làm việc trong hệ thống',
+          app_access: true,
+          admin_access: false,
+        }),
+      });
+      
+      if (!policyResponse.ok) {
+        throw new Error(`Failed to create policy: ${await policyResponse.text()}`);
+      }
+      
+      const policyData = await policyResponse.json();
+      employeePolicy = policyData.data;
+      console.log(`   ✅ Created Employee policy: ${employeePolicy.id}`);
+    } else {
+      console.log(`   ✅ Found existing Employee policy: ${employeePolicy.id}`);
+    }
+    
+    // 2.5.3 Link Policy to Role via directus_access
+    console.log('   🔗 Linking Policy to Role...');
+    
+    // Check if already linked
+    const accessCheckResponse = await fetch(`${directusUrl}/access?filter[role][_eq]=${employeeRole.id}&filter[policy][_eq]=${employeePolicy.id}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    const accessCheckData = await accessCheckResponse.json();
+    if (!accessCheckData.data || accessCheckData.data.length === 0) {
+      // Create access link
+      const accessResponse = await fetch(`${directusUrl}/access`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          role: employeeRole.id,
+          policy: employeePolicy.id,
+          sort: 1,
+        }),
+      });
+      
+      if (!accessResponse.ok) {
+        console.log(`   ⚠️ Warning: Could not link policy to role: ${await accessResponse.text()}`);
+      } else {
+        console.log(`   ✅ Linked Employee policy to Employee role`);
+      }
+    } else {
+      console.log(`   ✅ Policy already linked to role`);
+    }
+    
+    // 2.5.4 Create directus_users for employees and assign role
+    console.log('   👥 Creating/Updating Directus users for employees...');
+    
+    let usersCreated = 0;
+    let usersUpdated = 0;
+    
+    for (const emp of employees) {
+      try {
+        // Check if user exists
+        const userCheckResponse = await fetch(`${directusUrl}/users?filter[email][_eq]=${encodeURIComponent(emp.email)}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        const userCheckData = await userCheckResponse.json();
+        
+        if (userCheckData.data && userCheckData.data.length > 0) {
+          // User exists, update role
+          const existingUser = userCheckData.data[0];
+          const updateResponse = await fetch(`${directusUrl}/users/${existingUser.id}`, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              role: employeeRole.id,
+            }),
+          });
+          
+          if (updateResponse.ok) {
+            usersUpdated++;
+          }
+        } else {
+          // Create new user
+          const createUserResponse = await fetch(`${directusUrl}/users`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: emp.email,
+              password: 'Employee123!', // Default password
+              first_name: emp.first_name,
+              last_name: emp.last_name,
+              role: employeeRole.id,
+              status: 'active',
+            }),
+          });
+          
+          if (createUserResponse.ok) {
+            usersCreated++;
+          } else {
+            const errorText = await createUserResponse.text();
+            // Ignore duplicate email errors
+            if (!errorText.includes('unique')) {
+              console.log(`   ⚠️ Could not create user for ${emp.email}: ${errorText}`);
+            }
+          }
+        }
+      } catch (err: any) {
+        console.log(`   ⚠️ Error processing user ${emp.email}: ${err.message}`);
+      }
+    }
+    
+    console.log(`   ✅ Users: ${usersCreated} created, ${usersUpdated} updated with Employee role`);
 
     // ========================================================================
     // PHASE 3: SEED SCHEDULE DATA
@@ -369,16 +573,28 @@ async function seedComplete() {
     
     // 3.4 Employee Availability (Đăng ký ca)
     console.log('   📌 Creating Employee Availabilities...');
+    
+    // Re-fetch employees to ensure we have fresh data with valid IDs
+    const freshEmployees: any[] = await directus.request(readItems('employees', { 
+      limit: -1, 
+      fields: ['id', 'employee_code', 'status'],
+      filter: { status: { _eq: 'active' } }
+    }));
+    console.log(`   📊 Fresh employees from DB: ${freshEmployees.length}`);
+    if (freshEmployees.length === 0) {
+      throw new Error('No employees found in database!');
+    }
+    
     const availabilityData: any[] = [];
     
-    employees.forEach((emp: any) => {
+    freshEmployees.forEach((emp: any) => {
       // Mỗi nhân viên đăng ký ngẫu nhiên ~70% số ca
       shifts.forEach((shift: any) => {
         if (Math.random() < CONFIG.AVAILABILITY_RATE) {
           availabilityData.push({
             employee_id: emp.id,
             shift_id: shift.id,
-            status: 'approved', // Đã duyệt để auto-schedule hoạt động
+            status: 'available', // Đổi thành enum value đúng: available, unavailable, preferred
             priority: getRandomInt(1, 5),
             note: 'Đăng ký làm ca này',
           });
@@ -386,7 +602,39 @@ async function seedComplete() {
       });
     });
     
-    const availabilities = await directus.request(createItems('employee_availability', availabilityData));
+    // Debug: check for null employee_id
+    const nullEmployeeIds = availabilityData.filter(a => !a.employee_id);
+    if (nullEmployeeIds.length > 0) {
+      console.log(`   ⚠️ Found ${nullEmployeeIds.length} availability records with null employee_id`);
+    }
+    
+    // Filter out records with null employee_id or shift_id
+    const validAvailabilityData = availabilityData.filter(a => a.employee_id && a.shift_id);
+    console.log(`   📊 Valid availability records: ${validAvailabilityData.length} / ${availabilityData.length}`);
+    
+    // Debug: log first record
+    if (validAvailabilityData.length > 0) {
+      console.log(`   📊 Sample record:`, JSON.stringify(validAvailabilityData[0]));
+    }
+    
+    // Create in smaller batches to identify issues
+    const batchSize = 50;
+    const availabilities: any[] = [];
+    
+    for (let i = 0; i < validAvailabilityData.length; i += batchSize) {
+      const batch = validAvailabilityData.slice(i, i + batchSize);
+      console.log(`   📊 Creating batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(validAvailabilityData.length/batchSize)}...`);
+      try {
+        // Try creating one by one if batch fails
+        for (const item of batch) {
+          const created = await directus.request(createItems('employee_availability', [item]));
+          availabilities.push(...created);
+        }
+      } catch (err: any) {
+        console.log(`   ❌ Batch failed. First item in batch:`, JSON.stringify(batch[0]));
+        throw err;
+      }
+    }
     console.log(`   ✅ Created ${availabilities.length} employee availabilities`);
     
     // 3.5 Employee Availability Positions
