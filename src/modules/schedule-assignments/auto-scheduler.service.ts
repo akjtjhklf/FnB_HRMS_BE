@@ -279,11 +279,12 @@ export class AutoSchedulerService {
               this.isAvailable(e, s2.shift.id, posId)
             );
 
-            // Score candidates
+            // Score candidates - check if any shift is cross-midnight
+            const hasCrossMidnight = this.hasAnyCrossMidnight(s1.shift, s2.shift);
             const scores = candidates.map(e => ({
               ...e,
-              score: this.calculateScore(e, s1.shift, posId, positionMap, true) + 
-                     this.calculateScore(e, s2.shift, posId, positionMap, true)
+              score: this.calculateScore(e, s1.shift, posId, positionMap, true, 2, hasCrossMidnight) + 
+                     this.calculateScore(e, s2.shift, posId, positionMap, true, 2, hasCrossMidnight)
             })).sort((a, b) => b.score - a.score);
 
             // Assign
@@ -323,10 +324,12 @@ export class AutoSchedulerService {
               this.isAvailable(e, s2.shift.id, posId)
             );
 
+            // Check if any shift is cross-midnight
+            const hasCrossMidnight = this.hasAnyCrossMidnight(s1.shift, s2.shift);
             const scores = candidates.map(e => ({
               ...e,
-              score: this.calculateScore(e, s1.shift, posId, positionMap, true) + 
-                     this.calculateScore(e, s2.shift, posId, positionMap, true)
+              score: this.calculateScore(e, s1.shift, posId, positionMap, true, 2, hasCrossMidnight) + 
+                     this.calculateScore(e, s2.shift, posId, positionMap, true, 2, hasCrossMidnight)
             })).sort((a, b) => b.score - a.score);
 
             for (const cand of scores) {
@@ -363,10 +366,10 @@ export class AutoSchedulerService {
 
           if (candidates.length === 0) break;
 
-          // Score
+          // Score - single shift, không phải ca liên tiếp
           const scores = candidates.map(e => ({
             ...e,
-            score: this.calculateScore(e, shift, req.position_id, positionMap, false)
+            score: this.calculateScore(e, shift, req.position_id, positionMap, false, 0, false)
           })).sort((a, b) => b.score - a.score);
 
           let assigned = false;
@@ -401,6 +404,8 @@ export class AutoSchedulerService {
   /**
    * ============================================
    * SCORING HEURISTIC
+   * S(E,Shift,Position) = Wtype + Wposition + Whours + Wpreference + Wbalance + Wconsecutive + Wrandom
+   * Tổng điểm tối đa: 50 + 30 + 20 + 15 + 15 + 25 + 5 = 160 điểm
    * ============================================
    */
   private calculateScore(
@@ -408,31 +413,38 @@ export class AutoSchedulerService {
     shift: Shift,
     positionId: string,
     positionMap: Map<string, Position>,
-    isConsecutive: boolean
+    isConsecutive: boolean,
+    consecutiveCount: number = 0, // 0 = ca đơn, 2 = 2 ca liên tiếp
+    hasCrossMidnight: boolean = false // true nếu ca liên tiếp có chứa ca cross-midnight
   ): number {
     let score = 0;
 
-    // 1. Loại hợp đồng (Wtype)
+    // 1. Loại hợp đồng (Wtype) [10-50]
+    // - Full-time: 50
+    // - Part-time 2 ca liên tiếp: 25
+    // - Part-time 1 ca: 10
     if (emp.contractType === "full_time") score += 50;
-    else if (isConsecutive) score += 25; // PT 2 ca
-    else score += 10; // PT 1 ca
+    else if (isConsecutive && consecutiveCount >= 2) score += 25;
+    else score += 10;
 
-    // 2. Phù hợp vị trí (Wposition)
+    // 2. Phù hợp vị trí (Wposition) [15-30]
+    // - Vị trí ưu tiên cao (Pha chế): 30
+    // - Vị trí thường (Phục vụ, Thu ngân): 15
     const position = positionMap.get(positionId);
-    
-    // Ưu tiên dựa trên flag is_priority trong database
-    // Nếu không có flag, fallback về check tên (optional) hoặc mặc định là thường
     if (position?.is_priority) {
       score += 30;
     } else {
       score += 15;
     }
 
-    // 3. Giờ tích lũy tháng trước (Whours)
+    // 3. Giờ tích lũy tháng trước (Whours) [0-20]
     // Whours = min(20, total_hours_prev / 10)
     score += Math.min(20, emp.previousMonthHours / 10);
 
-    // 4. Thứ tự ưu tiên vị trí (Wpreference)
+    // 4. Thứ tự ưu tiên vị trí (Wpreference) [5-15]
+    // - preference_order = 1: 15
+    // - preference_order = 2: 10
+    // - preference_order >= 3: 5
     const avail = emp.availabilities.find(a => a.availability.shift_id === shift.id);
     const posPref = avail?.positions.find(p => p.position_id === positionId);
     const prefOrder = posPref?.preference_order || 1;
@@ -440,19 +452,32 @@ export class AutoSchedulerService {
     else if (prefOrder === 2) score += 10;
     else score += 5;
 
-    // 5. Cân bằng tải (Wbalance)
+    // 5. Cân bằng tải (Wbalance) [0-15]
     // Wbalance = max(0, 15 - current_week_hours / 10)
     score += Math.max(0, 15 - (emp.currentWeekHours / 10));
 
-    // 6. Ưu tiên ca liên tiếp (Wconsecutive)
-    if (isConsecutive) {
-      if (emp.contractType === "full_time") score += 25;
-      else score += 15;
+    // 6. Ưu tiên ca liên tiếp trong ngày (Wconsecutive) [0-25]
+    // Bảng điểm:
+    // - FT 2 ca liên tiếp (không cross-midnight): 25
+    // - PT 2 ca liên tiếp (không cross-midnight): 15
+    // - 1 ca đơn lẻ: 5
+    // - Ca liên tiếp có cross-midnight: 0
+    if (isConsecutive && consecutiveCount >= 2) {
+      if (hasCrossMidnight) {
+        // Ca liên tiếp có chứa ca cross-midnight - không cộng điểm
+        score += 0;
+      } else {
+        // Ca liên tiếp không cross-midnight
+        if (emp.contractType === "full_time") score += 25;
+        else score += 15;
+      }
     } else {
+      // Ca đơn lẻ
       score += 5;
     }
 
-    // 7. Random (Wrandom) [0, 5]
+    // 7. Yếu tố ngẫu nhiên (Wrandom) [0-5]
+    // Tránh việc hệ thống luôn xếp lịch y hệt nhau
     score += Math.random() * 5;
 
     return score;
@@ -471,6 +496,24 @@ export class AutoSchedulerService {
     const t2 = this.timeToMinutes(s2.start_at);
     const diff = t2 - t1;
     return diff >= 0 && diff <= 60; // Allow up to 60 mins gap
+  }
+
+  /**
+   * Kiểm tra ca có cross-midnight không
+   * Ca cross-midnight: end_time < start_time (ví dụ: 22:00 - 02:00)
+   */
+  private isCrossMidnight(shift: Shift): boolean {
+    if (!shift.start_at || !shift.end_at) return false;
+    const startMins = this.timeToMinutes(shift.start_at);
+    const endMins = this.timeToMinutes(shift.end_at);
+    return endMins < startMins;
+  }
+
+  /**
+   * Kiểm tra 2 ca liên tiếp có chứa ca cross-midnight không
+   */
+  private hasAnyCrossMidnight(s1: Shift, s2: Shift): boolean {
+    return this.isCrossMidnight(s1) || this.isCrossMidnight(s2);
   }
 
   private timeToMinutes(time: string): number {
