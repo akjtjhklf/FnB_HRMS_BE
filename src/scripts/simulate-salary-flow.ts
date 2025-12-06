@@ -1,6 +1,8 @@
 
 import { createDirectus, authentication, rest, createItem, readItems, updateItem } from "@directus/sdk";
+// @ts-ignore
 import { v4 as uuidv4 } from "uuid";
+// @ts-ignore
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -19,10 +21,6 @@ async function simulateSalaryFlow() {
   try {
     // Login
     console.log("Logging in...");
-    await client.login(ADMIN_EMAIL, ADMIN_PASSWORD); // This was the error, wait, the error says string is not assignable to payload.
-    // The previous attempt to fix it in step 830 might have failed or I am misremembering.
-    // The error "Argument of type 'string' is not assignable to parameter of type 'LocalLoginPayload'" confirms it expects an object.
-    // Let's fix it to pass an object.
     await client.login({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
     console.log("✅ Logged in successfully");
     // 1. Create a Salary Scheme

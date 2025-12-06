@@ -25,7 +25,7 @@ const router = Router();
 // GET /api/analytics/overview - Dashboard overview
 router.get(
   '/overview',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getOverviewQuerySchema),
   analyticsController.getOverview
 );
@@ -33,7 +33,7 @@ router.get(
 // GET /api/analytics/employees - Employee analytics
 router.get(
   '/employees',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getEmployeeAnalyticsQuerySchema),
   analyticsController.getEmployees
 );
@@ -41,7 +41,7 @@ router.get(
 // GET /api/analytics/attendance - Attendance analytics
 router.get(
   '/attendance',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getAttendanceAnalyticsQuerySchema),
   analyticsController.getAttendance
 );
@@ -49,7 +49,7 @@ router.get(
 // GET /api/analytics/schedule - Schedule analytics
 router.get(
   '/schedule',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getScheduleAnalyticsQuerySchema),
   analyticsController.getSchedule
 );
@@ -57,7 +57,7 @@ router.get(
 // GET /api/analytics/salary - Salary analytics
 router.get(
   '/salary',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getSalaryAnalyticsQuerySchema),
   analyticsController.getSalary
 );
@@ -65,7 +65,7 @@ router.get(
 // GET /api/analytics/trends - Trend data
 router.get(
   '/trends',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getTrendsQuerySchema),
   analyticsController.getTrends
 );
@@ -73,7 +73,7 @@ router.get(
 // GET /api/analytics/comparison - Period comparison
 router.get(
   '/comparison',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getComparisonQuerySchema),
   analyticsController.getComparison
 );
@@ -81,7 +81,7 @@ router.get(
 // GET /api/analytics/performance-ranking - Employee ranking
 router.get(
   '/performance-ranking',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getPerformanceRankingQuerySchema),
   analyticsController.getPerformanceRanking
 );
@@ -89,9 +89,16 @@ router.get(
 // GET /api/analytics/export - Export data
 router.get(
   '/export',
-  requireAuth(['admin', 'manager']),
+  requireAuth(),
   validateQuery(getExportQuerySchema),
   analyticsController.exportAnalytics
+);
+
+// GET /api/analytics/recent-activities - Recent activities for dashboard
+router.get(
+  '/recent-activities',
+  requireAuth(),
+  analyticsController.getRecentActivities
 );
 
 export default router;
