@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { HttpError } from "../core/base";
 import { ApiResponse } from "../core/response";
 import { createDirectus, rest, staticToken, readMe, readItems, authentication } from "@directus/sdk";
+import { directus } from "../utils/directusClient";
 
 // Optional stub: validate API key if provided
 export function apiKeyAuth(optional = true) {
@@ -65,11 +66,12 @@ export function requireAuth() {
         return next(new HttpError(401, "Invalid or expired token", "UNAUTHORIZED"));
       }
 
-      // Tìm employee_id nếu user chưa có
+      // Tìm employee_id nếu user chưa có - SỬ DỤNG ADMIN CLIENT để bypass permission
       let employeeId = (currentUser as any).employee_id;
       if (!employeeId) {
         try {
-          const employees = await userClient.request(
+          // Dùng admin directus client thay vì user client
+          const employees = await directus.request(
             readItems<any, any, any>("employees", {
               filter: { user_id: { _eq: (currentUser as any).id } },
               fields: ["id"] as any,

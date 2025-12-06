@@ -79,7 +79,7 @@ CREATE TABLE `salary_schemes` (
     
     CONSTRAINT `fk_salary_schemes_position` 
         FOREIGN KEY (`position_id`) REFERENCES `positions` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -123,7 +123,7 @@ CREATE TABLE `employees` (
     
     CONSTRAINT `fk_employees_scheme` 
         FOREIGN KEY (`scheme_id`) REFERENCES `salary_schemes` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -153,7 +153,7 @@ CREATE TABLE `contracts` (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_contracts_salary_scheme` 
         FOREIGN KEY (`salary_scheme_id`) REFERENCES `salary_schemes` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -213,7 +213,7 @@ CREATE TABLE `shifts` (
     
     CONSTRAINT `fk_shifts_schedule` 
         FOREIGN KEY (`schedule_id`) REFERENCES `weekly_schedule` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_shifts_shift_type` 
         FOREIGN KEY (`shift_type_id`) REFERENCES `shift_types` (`id`) 
         ON DELETE CASCADE ON UPDATE CASCADE
@@ -268,7 +268,7 @@ CREATE TABLE `schedule_assignments` (
     
     CONSTRAINT `fk_sa_schedule` 
         FOREIGN KEY (`schedule_id`) REFERENCES `weekly_schedule` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_sa_shift` 
         FOREIGN KEY (`shift_id`) REFERENCES `shifts` (`id`) 
         ON DELETE CASCADE ON UPDATE CASCADE,
@@ -354,7 +354,7 @@ CREATE TABLE `devices` (
     
     CONSTRAINT `fk_devices_employee_pending` 
         FOREIGN KEY (`employee_id_pending`) REFERENCES `employees` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -377,7 +377,7 @@ CREATE TABLE `rfid_cards` (
     
     CONSTRAINT `fk_rfid_cards_employee` 
         FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -405,13 +405,13 @@ CREATE TABLE `attendance_logs` (
     
     CONSTRAINT `fk_al_rfid_card` 
         FOREIGN KEY (`rfid_card_id`) REFERENCES `rfid_cards` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_al_employee` 
         FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_al_device` 
         FOREIGN KEY (`device_id`) REFERENCES `devices` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -440,10 +440,10 @@ CREATE TABLE `attendance_shifts` (
     
     CONSTRAINT `fk_as_shift` 
         FOREIGN KEY (`shift_id`) REFERENCES `shifts` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_as_schedule_assignment` 
         FOREIGN KEY (`schedule_assignment_id`) REFERENCES `schedule_assignments` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_as_employee` 
         FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) 
         ON DELETE CASCADE ON UPDATE CASCADE
@@ -475,7 +475,7 @@ CREATE TABLE `attendance_adjustments` (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_aa_requested_by` 
         FOREIGN KEY (`requested_by`) REFERENCES `employees` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -524,10 +524,10 @@ CREATE TABLE `monthly_payrolls` (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_mp_contract` 
         FOREIGN KEY (`contract_id`) REFERENCES `contracts` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_mp_salary_scheme` 
         FOREIGN KEY (`salary_scheme_id`) REFERENCES `salary_schemes` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -565,13 +565,13 @@ CREATE TABLE `salary_requests` (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_sr_current_scheme` 
         FOREIGN KEY (`current_scheme_id`) REFERENCES `salary_schemes` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_sr_proposed_scheme` 
         FOREIGN KEY (`proposed_scheme_id`) REFERENCES `salary_schemes` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_sr_payroll` 
         FOREIGN KEY (`payroll_id`) REFERENCES `monthly_payrolls` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -598,13 +598,13 @@ CREATE TABLE `deductions` (
     
     CONSTRAINT `fk_deductions_employee` 
         FOREIGN KEY (`employee_id`) REFERENCES `employees` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_deductions_payroll` 
         FOREIGN KEY (`payroll_id`) REFERENCES `monthly_payrolls` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE,
+        ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_deductions_shift` 
         FOREIGN KEY (`related_shift_id`) REFERENCES `shifts` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================
@@ -657,7 +657,7 @@ CREATE TABLE `schedule_change_requests` (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT `fk_scr_target_employee` 
         FOREIGN KEY (`target_employee_id`) REFERENCES `employees` (`id`) 
-        ON DELETE SET NULL ON UPDATE CASCADE
+        ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================================

@@ -38,7 +38,7 @@
 
 import 'dotenv/config';
 import { directus, ensureAuth, getAuthToken } from '../src/utils/directusClient';
-import { createItems, readMe, readItems, deleteItems, createRole, readRoles, createUser, updateUser } from '@directus/sdk';
+import { createItems, readMe, readItems, deleteItems, createRole, readRoles, createUser, updateUser, updateItem } from '@directus/sdk';
 import { randomUUID } from 'crypto';
 
 // ============================================================================
@@ -82,10 +82,26 @@ function formatDateTime(date: string, time: string): string {
   return `${date}T${time}`;
 }
 
+// Parse datetime string without timezone conversion
+function parseLocalDateTime(dateTime: string): Date {
+  // Format: "2025-12-02T06:00:00"
+  const [datePart, timePart] = dateTime.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute, second] = timePart.split(':').map(Number);
+  return new Date(year, month - 1, day, hour, minute, second || 0);
+}
+
 function addMinutes(dateTime: string, minutes: number): string {
-  const d = new Date(dateTime);
+  const d = parseLocalDateTime(dateTime);
   d.setMinutes(d.getMinutes() + minutes);
-  return d.toISOString().replace('Z', '').split('.')[0];
+  // Format back to local datetime string
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hour = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  const sec = String(d.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hour}:${min}:${sec}`;
 }
 
 function getDatesInRange(startDate: string, endDate: string): string[] {
@@ -455,9 +471,13 @@ async function seedComplete() {
         const userCheckData = await userCheckResponse.json();
         
         if (userCheckData.data && userCheckData.data.length > 0) {
-          // User exists, update role
+          // User exists, update role AND link to employee
           const existingUser = userCheckData.data[0];
-          const updateResponse = await fetch(`${directusUrl}/users/${existingUser.id}`, {
+          const userId = existingUser.id;
+          
+          console.log(`   🔗 User exists for ${emp.email}, linking user ${userId} to employee ${emp.id}`);
+          
+          const updateResponse = await fetch(`${directusUrl}/users/${userId}`, {
             method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -470,6 +490,16 @@ async function seedComplete() {
           
           if (updateResponse.ok) {
             usersUpdated++;
+            
+            // Link user to employee
+            try {
+              await directus.request(
+                updateItem('employees', emp.id, { user_id: userId })
+              );
+              console.log(`   ✅ Successfully linked existing user to employee`);
+            } catch (linkErr: any) {
+              console.log(`   ❌ Failed to link user to employee: ${linkErr.message}`);
+            }
           }
         } else {
           // Create new user
@@ -491,16 +521,34 @@ async function seedComplete() {
           
           if (createUserResponse.ok) {
             usersCreated++;
+            
+            // Link user to employee
+            const createdUserData = await createUserResponse.json();
+            const userId = createdUserData.data.id;
+            console.log(`   🔗 Linking user ${userId} to employee ${emp.id} (${emp.email})`);
+            
+            // Update employee with user_id
+            try {
+              await directus.request(
+                updateItem('employees', emp.id, { user_id: userId })
+              );
+              console.log(`   ✅ Successfully linked user to employee`);
+            } catch (linkErr: any) {
+              console.log(`   ❌ Failed to link user to employee: ${linkErr.message}`);
+            }
           } else {
             const errorText = await createUserResponse.text();
             // Ignore duplicate email errors
             if (!errorText.includes('unique')) {
               console.log(`   ⚠️ Could not create user for ${emp.email}: ${errorText}`);
+            } else {
+              console.log(`   ℹ️ User already exists for ${emp.email}, skipping...`);
             }
           }
         }
       } catch (err: any) {
         console.log(`   ⚠️ Error processing user ${emp.email}: ${err.message}`);
+        console.log(`   📊 Stack trace: ${err.stack}`);
       }
     }
     
@@ -587,15 +635,21 @@ async function seedComplete() {
     
     const availabilityData: any[] = [];
     
-    freshEmployees.forEach((emp: any) => {
-      // Mỗi nhân viên đăng ký ngẫu nhiên ~70% số ca
-      shifts.forEach((shift: any) => {
-        if (Math.random() < CONFIG.AVAILABILITY_RATE) {
+    freshEmployees.forEach((emp: any, empIndex: number) => {
+      // Deterministic: Mỗi nhân viên đăng ký ~70% số ca dựa trên pattern
+      // Employee index + shift index mod 10 < 7 => available (70%)
+      shifts.forEach((shift: any, shiftIndex: number) => {
+        const combinedIndex = empIndex * 100 + shiftIndex;
+        const isAvailable = (combinedIndex % 10) < 7; // 70% available
+        
+        if (isAvailable) {
+          // Priority dựa trên (empIndex + shiftIndex) % 5 + 1 = 1-5
+          const priority = ((empIndex + shiftIndex) % 5) + 1;
           availabilityData.push({
             employee_id: emp.id,
             shift_id: shift.id,
             status: 'available', // Đổi thành enum value đúng: available, unavailable, preferred
-            priority: getRandomInt(1, 5),
+            priority: priority,
             note: 'Đăng ký làm ca này',
           });
         }
@@ -642,8 +696,9 @@ async function seedComplete() {
     const availPosData: any[] = [];
     
     availabilities.forEach((avail: any, idx: number) => {
-      // Mỗi availability link với 1-2 positions
-      const numPositions = getRandomInt(1, 2);
+      // Deterministic: Mỗi availability link với 1-2 positions
+      // idx % 3 == 0 => 2 positions, còn lại 1 position (33% có 2 positions)
+      const numPositions = (idx % 3 === 0) ? 2 : 1;
       for (let i = 0; i < numPositions; i++) {
         availPosData.push({
           availability_id: avail.id,
@@ -717,12 +772,13 @@ async function seedComplete() {
     
     console.log('   ⏰ Creating Attendance Logs...');
     const attendanceLogsData: any[] = [];
+    const attendanceShiftsData: any[] = []; // For processed attendance records
     
     // Chỉ tạo attendance cho các ngày đã qua (giả sử hôm nay là cuối tuần)
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
     
-    assignments.forEach((assignment: any) => {
+    assignments.forEach((assignment: any, assignmentIndex: number) => {
       const shift = shifts.find((s: any) => s.id === assignment.shift_id);
       if (!shift) return;
       
@@ -731,8 +787,10 @@ async function seedComplete() {
       // Chỉ tạo attendance cho ngày đã qua hoặc hôm nay
       if (shiftDate > todayStr) return;
       
-      // 95% có chấm công
-      if (Math.random() > CONFIG.ATTENDANCE_RATE) return;
+      // Deterministic: Dựa trên index của assignment để quyết định có đi làm không
+      // 95% đi làm = bỏ 1 trong 20 ca (mỗi employee thứ 20 skip 1 ca)
+      const skipAttendance = (assignmentIndex % 20 === 0) && (assignmentIndex > 0);
+      if (skipAttendance) return;
       
       const shiftType = shiftTypes.find((st: any) => st.id === (shift as any).shift_type_id);
       const startTime = (shiftType as any).start_time;
@@ -740,16 +798,23 @@ async function seedComplete() {
       // Parse start time
       const [startHour, startMin] = startTime.split(':').map(Number);
       
-      // Random check-in time (có thể đi trễ 10%)
-      const isLate = Math.random() < CONFIG.LATE_RATE;
-      const lateMinutes = isLate ? getRandomInt(5, 30) : getRandomInt(-10, 5);
+      // Deterministic late pattern:
+      // - Mỗi người thứ 10 sẽ đi trễ (10% late rate)
+      // - Số phút trễ dựa trên index: 5 + (index % 25) = 5-29 phút
+      // - Người không trễ sẽ đến đúng giờ hoặc sớm: -5 đến +5 phút dựa trên index
+      const isLate = (assignmentIndex % 10 === 0);
+      const lateMinutes = isLate 
+        ? 5 + (assignmentIndex % 25)  // 5-29 phút trễ
+        : ((assignmentIndex % 11) - 5); // -5 đến +5 phút
       
       const checkInDateTime = formatDateTime(shiftDate, startTime);
       const actualCheckIn = addMinutes(checkInDateTime, lateMinutes);
       
-      // Check-out sau 8 giờ
+      // Check-out sau 8 giờ, với variation nhỏ dựa trên index
+      // -10 đến +20 phút dựa trên (index % 31 - 10)
+      const checkoutVariation = (assignmentIndex % 31) - 10;
       const checkOutDateTime = addMinutes(checkInDateTime, 8 * 60);
-      const actualCheckOut = addMinutes(checkOutDateTime, getRandomInt(-10, 30));
+      const actualCheckOut = addMinutes(checkOutDateTime, checkoutVariation);
       
       // Clock in log
       attendanceLogsData.push({
@@ -768,10 +833,36 @@ async function seedComplete() {
         event_time: actualCheckOut,
         processed: true,
       });
+      
+      // Store attendance shift data for later creation
+      // Calculate worked minutes and late minutes
+      const inTime = parseLocalDateTime(actualCheckIn);
+      const outTime = parseLocalDateTime(actualCheckOut);
+      const workedMinutes = Math.round((outTime.getTime() - inTime.getTime()) / (1000 * 60));
+      const actualLateMinutes = Math.max(0, lateMinutes); // Only positive = late
+      
+      attendanceShiftsData.push({
+        employee_id: assignment.employee_id,
+        shift_id: shift.id,
+        schedule_assignment_id: assignment.id,
+        clock_in: actualCheckIn,
+        clock_out: actualCheckOut,
+        worked_minutes: workedMinutes,
+        late_minutes: actualLateMinutes,
+        early_leave_minutes: Math.max(0, -checkoutVariation), // Negative checkout = early leave
+        status: 'present',
+        manual_adjusted: false,
+        notes: null,
+      });
     });
     
     const attendanceLogs = await directus.request(createItems('attendance_logs', attendanceLogsData));
     console.log(`   ✅ Created ${attendanceLogs.length} attendance logs`);
+    
+    // Create attendance_shifts records (processed attendance data)
+    console.log('   📊 Creating Attendance Shifts...');
+    const attendanceShifts = await directus.request(createItems('attendance_shifts', attendanceShiftsData));
+    console.log(`   ✅ Created ${attendanceShifts.length} attendance shifts`);
 
     // ========================================================================
     // PHASE 6: SEED PAYROLL DATA
@@ -781,6 +872,47 @@ async function seedComplete() {
     console.log('   💰 Creating Monthly Payrolls...');
     const payrollsData: any[] = [];
     
+    // Helper: Tính số giờ làm thực tế từ attendance logs
+    // Attendance logs được tạo theo cặp clock_in, clock_out liên tiếp cho mỗi assignment
+    const calculateActualWorkHours = (employeeId: string): { totalHours: number; lateMinutes: number; sessions: number } => {
+      // Lấy tất cả logs của employee, sort theo thời gian
+      const empLogs = attendanceLogsData
+        .filter((log) => log.employee_id === employeeId)
+        .sort((a, b) => parseLocalDateTime(a.event_time).getTime() - parseLocalDateTime(b.event_time).getTime());
+      
+      let totalHours = 0;
+      let totalLateMinutes = 0;
+      let sessions = 0;
+      
+      // Ghép cặp clock_in và clock_out
+      for (let i = 0; i < empLogs.length; i += 2) {
+        const clockIn = empLogs[i];
+        const clockOut = empLogs[i + 1];
+        
+        if (clockIn?.event_type === 'clock_in' && clockOut?.event_type === 'clock_out') {
+          const inTime = parseLocalDateTime(clockIn.event_time);
+          const outTime = parseLocalDateTime(clockOut.event_time);
+          const hoursWorked = (outTime.getTime() - inTime.getTime()) / (1000 * 60 * 60);
+          
+          totalHours += hoursWorked;
+          sessions++;
+          
+          // Tính late minutes - dựa trên giờ bắt đầu ca (round to nearest hour for simplicity)
+          // Vì attendance được tạo với lateMinutes random, nên chỉ tính những ai đi trễ > 5 phút
+          const minutes = inTime.getMinutes();
+          if (minutes > 5) {
+            totalLateMinutes += minutes;
+          }
+        }
+      }
+      
+      return { 
+        totalHours: Math.round(totalHours * 100) / 100, 
+        lateMinutes: totalLateMinutes,
+        sessions 
+      };
+    };
+    
     employees.forEach((emp: any, idx: number) => {
       const contract = contracts.find((c: any) => c.employee_id === emp.id);
       if (!contract) return;
@@ -788,33 +920,69 @@ async function seedComplete() {
       const scheme = salarySchemes.find((s: any) => s.id === (contract as any).salary_scheme_id);
       if (!scheme) return;
       
-      // Tính work hours từ attendance
-      const empAttendance = attendanceLogsData.filter(
-        (log) => log.employee_id === emp.id && log.event_type === 'clock_in'
-      );
-      const totalWorkHours = empAttendance.length * 8; // Giả sử mỗi ca 8 giờ
+      // Tính work hours THỰC TẾ từ attendance logs
+      const workStats = calculateActualWorkHours(emp.id);
+      const totalWorkHours = workStats.totalHours;
+      const totalLateMinutes = workStats.lateMinutes;
+      const workDays = workStats.sessions;
       const overtimeHours = Math.max(0, totalWorkHours - 160); // Overtime nếu > 160h/tháng
       
-      // Tính lương
+      console.log(`   📊 ${emp.full_name}: ${workDays} ngày, ${totalWorkHours.toFixed(1)}h, late: ${totalLateMinutes}m`);
+      
+      // =====================================================================
+      // TÍNH LƯƠNG ĐÚNG LOGIC
+      // =====================================================================
       let baseSalary: number;
       let hourlyRate: number = 0;
+      const schemeRate = Number((scheme as any).rate);
+      const expectedWorkDaysPerMonth = 22; // Số ngày làm việc chuẩn/tháng
+      const expectedHoursPerDay = 8;       // Số giờ làm chuẩn/ngày
       
       if ((scheme as any).pay_type === 'monthly') {
-        baseSalary = (scheme as any).rate;
+        // LƯƠNG THÁNG: Tính theo tỉ lệ ngày làm thực tế
+        // Nếu làm đủ 22 ngày → full lương, nếu ít hơn → tính tỉ lệ
+        const workRatio = Math.min(workDays / expectedWorkDaysPerMonth, 1);
+        baseSalary = Math.round(schemeRate * workRatio);
+        // Tính hourly rate ước tính cho monthly (dùng khi tính OT)
+        hourlyRate = schemeRate / (expectedWorkDaysPerMonth * expectedHoursPerDay);
       } else {
-        // Hourly: rate * hours worked
-        hourlyRate = (scheme as any).rate;
-        baseSalary = hourlyRate * totalWorkHours;
+        // LƯƠNG GIỜ: rate × số giờ làm thực tế
+        hourlyRate = schemeRate;
+        baseSalary = Math.round(hourlyRate * totalWorkHours);
       }
       
-      const allowances = getRandomInt(500000, 1500000);
-      const bonuses = Math.random() > 0.7 ? getRandomInt(500000, 2000000) : 0;
-      const overtimePay = overtimeHours * (hourlyRate || 50000) * ((scheme as any).overtime_multiplier || 1.5);
-      const deductions = getRandomInt(100000, 500000);
-      const penalties = Math.random() > 0.8 ? getRandomInt(50000, 200000) : 0;
+      // ALLOWANCES: Phụ cấp cố định theo vị trí (không random)
+      // Giả sử: 500k/tháng cho tất cả, tính theo tỉ lệ ngày làm
+      const baseAllowance = 500000;
+      const allowanceRatio = Math.min(workDays / expectedWorkDaysPerMonth, 1);
+      const allowances = Math.round(baseAllowance * allowanceRatio);
       
+      // BONUSES: Chỉ có nếu làm đủ ngày (> 80% expected days trong tuần seed)
+      // Trong tuần seed có 6 ngày làm, nếu làm >= 5 ngày → có bonus
+      const expectedWorkDaysInSeed = 6;
+      const bonusEligible = workDays >= Math.ceil(expectedWorkDaysInSeed * 0.8);
+      const bonuses = bonusEligible ? 200000 : 0; // Bonus cố định 200k nếu đủ điều kiện
+      
+      // OVERTIME PAY: Chỉ tính nếu làm > 8h/ngày trung bình
+      const avgHoursPerDay = workDays > 0 ? totalWorkHours / workDays : 0;
+      const overtimeHoursCalc = workDays > 0 ? Math.max(0, (avgHoursPerDay - expectedHoursPerDay) * workDays) : 0;
+      const overtimePay = Math.round(overtimeHoursCalc * hourlyRate * ((scheme as any).overtime_multiplier || 1.5));
+      
+      // DEDUCTIONS: Bảo hiểm xã hội, thuế (khoảng 10.5% của base + allowances)
+      const deductionRate = 0.105;
+      const deductions = Math.round((baseSalary + allowances) * deductionRate);
+      
+      // PENALTIES: Dựa trên late minutes thực tế
+      // 10k cho mỗi 10 phút trễ
+      const latePenalty = totalLateMinutes > 0 ? Math.floor(totalLateMinutes / 10) * 10000 : 0;
+      const penalties = latePenalty;
+      
+      // GROSS & NET SALARY
       const grossSalary = baseSalary + allowances + bonuses + overtimePay;
       const netSalary = grossSalary - deductions - penalties;
+      
+      // Tính số ngày vắng trong tuần seed
+      const absentDays = Math.max(0, expectedWorkDaysInSeed - workDays);
       
       payrollsData.push({
         id: randomUUID(), // Directus yêu cầu id
@@ -832,13 +1000,13 @@ async function seedComplete() {
         penalties,
         gross_salary: grossSalary,
         net_salary: netSalary,
-        total_work_days: Math.ceil(totalWorkHours / 8),
-        total_work_hours: totalWorkHours,
-        overtime_hours: overtimeHours,
-        total_late_minutes: Math.random() > 0.7 ? getRandomInt(15, 60) : 0,
-        absent_days: Math.random() > 0.8 ? getRandomInt(1, 2) : 0,
+        total_work_days: workDays,           // SỐ NGÀY LÀM THỰC TẾ từ attendance
+        total_work_hours: totalWorkHours,    // SỐ GIỜ LÀM THỰC TẾ từ attendance  
+        overtime_hours: overtimeHoursCalc,
+        total_late_minutes: totalLateMinutes, // SỐ PHÚT TRỄ THỰC TẾ từ attendance
+        absent_days: absentDays,              // SỐ NGÀY VẮNG từ attendance
         status: 'draft',
-        notes: `Bảng lương tháng ${CONFIG.TARGET_MONTH}`,
+        notes: `Bảng lương tháng ${CONFIG.TARGET_MONTH} - Sync từ ${workDays} ngày chấm công`,
       });
     });
     
@@ -865,6 +1033,7 @@ async function seedComplete() {
     🎯 Availability Positions:           ${availPositions.length}
     📋 Schedule Assignments:             ${assignments.length}
     📝 Attendance Logs:                  ${attendanceLogs.length}
+    📊 Attendance Shifts:                ${attendanceShifts.length}
     💵 Monthly Payrolls:                 ${payrolls.length}
     ─────────────────────────────────────────────────────────────────
     TOTAL RECORDS:                       ${
@@ -872,7 +1041,7 @@ async function seedComplete() {
       employees.length + contracts.length + weeklySchedules.length +
       shifts.length + shiftPosReqs.length + availabilities.length +
       availPositions.length + assignments.length + attendanceLogs.length +
-      payrolls.length
+      attendanceShifts.length + payrolls.length
     }
     `);
     console.log('═══════════════════════════════════════════════════════════════\n');
@@ -892,6 +1061,7 @@ async function clearOldData() {
   // NOTE: Skip contracts & employees - they have FK with users
   const collections = [
     'monthly_payrolls',
+    'attendance_shifts',  // Clear processed attendance data
     'attendance_logs',
     'schedule_assignments',
     'employee_availability_positions',
