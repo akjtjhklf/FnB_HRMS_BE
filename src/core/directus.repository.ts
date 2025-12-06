@@ -1,5 +1,5 @@
 import { BaseRepository, Identifier } from "./base";
-import { directus } from "../utils/directusClient";
+import { adminDirectus as directus } from "../utils/directusClient";
 import {
   readItems,
   readItem,

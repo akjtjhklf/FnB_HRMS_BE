@@ -7,7 +7,7 @@ import {
 } from "../../core/dto/pagination.dto";
 import { CreateFullEmployeeDto } from "./employee.dto";
 import UserService from "../users/user.service";
-import { directus as DirectusClient, getAuthToken } from "../../utils/directusClient";
+import { adminDirectus as DirectusClient, getAuthToken } from "../../utils/directusClient";
 import { createUser, readUsers, createItem, deleteItem, deleteItems, readItems, updateUser, updateItem } from "@directus/sdk";
 import DirectusAccessService from "../../core/services/directus-access.service";
 
@@ -271,6 +271,14 @@ export class EmployeeService extends BaseService<Employee> {
     const employee = await this.get(id);
     if (!employee) throw new HttpError(404, "Employee not found", "EMPLOYEE_NOT_FOUND");
 
+    console.log("🔍 UpdateFull Debug:", {
+      employeeId: id,
+      hasUser: !!employee.user,
+      userId: employee.user?.id,
+      currentEmail: employee.user?.email,
+      newEmail: data.email,
+    });
+
     try {
       // 1. Update Employee Basic Info
       const employeePayload = { ...data };
@@ -286,7 +294,21 @@ export class EmployeeService extends BaseService<Employee> {
       // 2. Update User Info (if user exists)
       if (employee.user && employee.user.id) {
         const userUpdates: any = {};
-        if (data.email) userUpdates.email = data.email;
+        if (data.email) {
+          // Check if new email already exists (exclude current user)
+          const existingUsers = await DirectusClient.request(
+            readUsers({ 
+              filter: { 
+                email: { _eq: data.email },
+                id: { _neq: employee.user.id } // Exclude current user
+              } 
+            })
+          );
+          if (existingUsers && existingUsers.length > 0) {
+            throw new HttpError(409, "Email already exists", "EMAIL_CONFLICT");
+          }
+          userUpdates.email = data.email;
+        }
         if (data.roleId) userUpdates.role = data.roleId;
         if (data.password) userUpdates.password = data.password;
         
@@ -302,10 +324,23 @@ export class EmployeeService extends BaseService<Employee> {
         // 2b. Create User if not exists (and we have enough info)
         console.log("Creating missing User for Employee during update...");
         
-        // Check if email exists
-        const existingUsers = await DirectusClient.request(readUsers({ filter: { email: { _eq: data.email } } }));
+        // Check if email exists in directus_users
+        // BUT allow if it's the same email currently stored in this employee record
+        const existingUsers = await DirectusClient.request(
+          readUsers({ 
+            filter: { 
+              email: { _eq: data.email }
+            } 
+          })
+        );
+        
+        // Only throw error if email exists AND it's not the current employee's email
         if (existingUsers && existingUsers.length > 0) {
-             throw new HttpError(409, "Email already exists", "EMAIL_CONFLICT");
+          // Check if this email belongs to the current employee (stored in employees table)
+          if (employee.email !== data.email) {
+            throw new HttpError(409, "Email already exists", "EMAIL_CONFLICT");
+          }
+          // If email is the same as employee's current email, allow it (probably re-trying to create user)
         }
 
         const userPayload = {

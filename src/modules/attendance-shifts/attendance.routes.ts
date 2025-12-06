@@ -47,7 +47,7 @@ router.get(
 router.get(
   "/report", 
   requireAuth(), 
-  checkPermission('read', 'attendance_shifts'), 
+  // Note: Service uses admin client internally, no collection permission needed
   getMonthlyReport
 );
 

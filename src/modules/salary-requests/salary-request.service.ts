@@ -6,7 +6,7 @@ import {
 import { SalaryRequest } from "./salary-request.model";
 import SalaryRequestRepository from "./salary-request.repository";
 import { updateItem, readItems, readItem } from "@directus/sdk";
-import { directus } from "../../utils/directusClient";
+import { adminDirectus as directus } from "../../utils/directusClient";
 import { getNotificationHelper, NotificationType } from "../notifications";
 
 import EmployeeRepository from "../employees/employee.repository";

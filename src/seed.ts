@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { directus, ensureAuth } from './utils/directusClient';
+import { adminDirectus as directus, ensureAuth } from './utils/directusClient';
 import { createItems, readMe, readItems, deleteItems } from '@directus/sdk';
 
 async function run() {

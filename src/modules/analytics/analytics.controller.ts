@@ -278,3 +278,26 @@ export const exportAnalytics = async (
     return sendError(res, error?.message || 'Failed to export analytics', 500);
   }
 };
+
+/**
+ * GET /api/analytics/recent-activities
+ * Get recent activities for dashboard
+ */
+export const getRecentActivities = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>
+) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    
+    const activities = await analyticsService.getRecentActivities(limit);
+    
+    return res.json({
+      success: true,
+      data: activities,
+    });
+  } catch (error: any) {
+    console.error('❌ Error in getRecentActivities:', error);
+    return sendError(res, error?.message || 'Failed to get recent activities', 500);
+  }
+};

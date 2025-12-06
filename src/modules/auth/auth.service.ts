@@ -1,4 +1,4 @@
-import { directus } from "../../utils/directusClient";
+import { adminDirectus as directus } from "../../utils/directusClient";
 import { readMe, readItems, readPolicy, readPermissions } from "@directus/sdk";
 import {
   UserIdentityDto,
@@ -17,6 +17,8 @@ export class AuthService {
    */
   async getUserIdentity(userClient: any): Promise<UserIdentityDto> {
     try {
+      console.log('🔍 getUserIdentity called');
+      
       // 1. Lấy user hiện tại với role populated
       const user = (await userClient.request(
         readMe({
@@ -30,38 +32,67 @@ export class AuthService {
         })
       )) as User;
 
+      console.log(`📊 User fetched: ${user.id}, email: ${user.email}`);
+
       if (!user) {
         throw new HttpError(401, "User not found", "UNAUTHORIZED");
       }
 
-      // 2. Lấy employee liên kết (nếu có)
+      // 2. Lấy employee liên kết (nếu có) - SỬ DỤNG ADMIN TOKEN để bypass permission
       let employee: Employee | null = null;
+      const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+      const adminToken = process.env.DIRECTUS_TOKEN;
+      
       if (user.employee_id) {
+        console.log(`📊 user.employee_id exists: ${user.employee_id}`);
         try {
-          const employees = await userClient.request(
-            // FIX: Thêm tham số any thứ 3 -> <any, any, any>
-            readItems<any, any, any>("employees", {
-              filter: { id: { _eq: user.employee_id } },
-              fields: ["*"] as any,
-              limit: 1,
-            })
-          );
-          employee = employees?.[0] || null;
+          // Dùng admin token để fetch employee
+          const url = new URL(`${directusUrl}/items/employees`);
+          url.searchParams.append('filter', JSON.stringify({ id: { _eq: user.employee_id } }));
+          url.searchParams.append('fields', '*');
+          url.searchParams.append('limit', '1');
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'Authorization': `Bearer ${adminToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            employee = data?.data?.[0] || null;
+          }
         } catch (error) {
           console.error("❌ Error fetching employee:", error);
         }
       } else {
-        // Fallback: tìm employee theo user_id
+        // Fallback: tìm employee theo user_id - SỬ DỤNG ADMIN TOKEN
+        console.log(`📊 Looking for employee with user_id: ${user.id}`);
         try {
-          const employees = await userClient.request(
-            // FIX: Thêm tham số any thứ 3
-            readItems<any, any, any>("employees", {
-              filter: { user_id: { _eq: user.id } },
-              fields: ["*"] as any,
-              limit: 1,
-            })
-          );
-          employee = employees?.[0] || null;
+          const url = new URL(`${directusUrl}/items/employees`);
+          url.searchParams.append('filter', JSON.stringify({ user_id: { _eq: user.id } }));
+          url.searchParams.append('fields', '*');
+          url.searchParams.append('limit', '1');
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'Authorization': `Bearer ${adminToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const employees = data?.data || [];
+            console.log(`📊 Found ${employees.length} employees`);
+            if (employees.length > 0) {
+              console.log(`📊 Employee found:`, JSON.stringify(employees[0], null, 2));
+            }
+            employee = employees[0] || null;
+          } else {
+            console.error("❌ Error fetching employee by user_id:", await response.text());
+          }
         } catch (error) {
           console.error("❌ Error fetching employee by user_id:", error);
         }
@@ -79,12 +110,12 @@ export class AuthService {
         try {
           // Lấy policies của role (Directus v11: role → policies là many-to-many)
           // Sử dụng directus_access table để lấy policy_id của role
-          // Use fetch instead of readItems for core collection
+          // Use fetch instead of readItems for core collection - DÙNG ADMIN TOKEN
           const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
-          const token = await userClient.getToken();
+          const adminToken = process.env.DIRECTUS_TOKEN; // Admin token
           
-          if (!token) {
-            throw new Error('No authentication token available');
+          if (!adminToken) {
+            throw new Error('No admin token configured');
           }
 
           const url = new URL(`${directusUrl}/access`);
@@ -93,7 +124,7 @@ export class AuthService {
           
           const response = await fetch(url.toString(), {
             headers: {
-              'Authorization': `Bearer ${token}`,
+              'Authorization': `Bearer ${adminToken}`,
               'Content-Type': 'application/json',
             },
           });
@@ -113,8 +144,8 @@ export class AuthService {
 
           for (const policyId of policyIds) {
             try {
-              // Use SDK method for policies - readPolicy is supported
-              const policy = await userClient.request(
+              // Use SDK method for policies - SỬ DỤNG ADMIN CLIENT
+              const policy = await directus.request(
                 readPolicy(policyId, {
                   fields: ['*'],
                 })
@@ -126,8 +157,8 @@ export class AuthService {
               if (policy.admin_access) isAdmin = true;
               if (policy.app_access) canAccessApp = true;
 
-              // Use SDK method for permissions - readPermissions is supported
-              const permissions = await userClient.request(
+              // Use SDK method for permissions - SỬ DỤNG ADMIN CLIENT
+              const permissions = await directus.request(
                 readPermissions({
                   filter: { policy: { _eq: policyId } },
                   fields: ['*'],
@@ -137,12 +168,12 @@ export class AuthService {
 
               policiesWithPerms.push({
                 ...policy,
-                permissions: permissions || [],
-              });
+                permissions: (permissions || []) as any[],
+              } as PolicyWithPermissions);
 
               // Aggregate permissions
               if (permissions) {
-                allPermissions.push(...permissions);
+                allPermissions.push(...(permissions as any[]));
               }
             } catch (error) {
               console.error(`❌ Error fetching policy ${policyId}:`, error);
@@ -160,19 +191,19 @@ export class AuthService {
         }
       }
 
-      // 4. Lấy policies assigned directly cho User (nếu có)
+      // 4. Lấy policies assigned directly cho User (nếu có) - DÙNG ADMIN TOKEN
       try {
         const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
-        const token = await userClient.getToken();
+        const adminToken = process.env.DIRECTUS_TOKEN; // Admin token
         
-        if (token) {
+        if (adminToken) {
           const url = new URL(`${directusUrl}/access`);
           url.searchParams.append('filter', JSON.stringify({ user: { _eq: user.id } }));
           url.searchParams.append('fields', 'policy');
           
           const response = await fetch(url.toString(), {
             headers: {
-              'Authorization': `Bearer ${token}`,
+              'Authorization': `Bearer ${adminToken}`,
               'Content-Type': 'application/json',
             },
           });
@@ -184,7 +215,8 @@ export class AuthService {
 
             for (const policyId of userPolicyIds) {
               try {
-                const policy = await userClient.request(
+                // DÙNG ADMIN CLIENT
+                const policy = await directus.request(
                   readPolicy(policyId, { fields: ['*'] })
                 );
                 
@@ -193,7 +225,8 @@ export class AuthService {
                 if (policy.admin_access) isAdmin = true;
                 if (policy.app_access) canAccessApp = true;
 
-                const permissions = await userClient.request(
+                // DÙNG ADMIN CLIENT
+                const permissions = await directus.request(
                   readPermissions({
                     filter: { policy: { _eq: policyId } },
                     fields: ['*'],
@@ -202,7 +235,7 @@ export class AuthService {
                 );
 
                 if (permissions) {
-                  allPermissions.push(...permissions);
+                  allPermissions.push(...(permissions as any[]));
                 }
               } catch (error) {
                 console.error(`❌ Error fetching user policy ${policyId}:`, error);

@@ -1,7 +1,7 @@
 import NovuService from "./novu.service";
 import NotificationLogRepository from "./notification-log.repository";
 import { DirectusRepository } from "../../core/directus.repository";
-import { directus } from "../../utils/directusClient";
+import { adminDirectus as directus } from "../../utils/directusClient";
 import { readItems } from "@directus/sdk";
 
 /**
