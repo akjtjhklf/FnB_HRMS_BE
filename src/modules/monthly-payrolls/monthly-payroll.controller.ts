@@ -52,7 +52,7 @@ export const getMonthlyPayroll = async (
   next: NextFunction
 ) => {
   try {
-    const data = await service.get(req.params.id);
+    const data = await service.get(req.params.id, (req as any).user);
     return sendSuccess(
       res,
       toMonthlyPayrollResponseDto(data),

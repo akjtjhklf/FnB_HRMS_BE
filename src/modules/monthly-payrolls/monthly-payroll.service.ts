@@ -40,6 +40,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
    */
   async listPaginated(query: PaginationQueryDto, currentUser?: any): Promise<PaginatedResponse<MonthlyPayroll>> {
     // RBAC: Nếu là nhân viên thường (không phải admin/manager), chỉ xem được lương của mình
+    // VÀ chỉ xem được các bảng lương có trạng thái pending_approval, approved, paid (không xem draft)
     if (currentUser && currentUser.role?.name !== 'Administrator' && currentUser.role?.name !== 'Manager') {
       // Tìm employee theo user_id
       try {
@@ -52,6 +53,8 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
         if (employees.length > 0) {
           query.filter = query.filter || {};
           query.filter.employee_id = { _eq: employees[0].id };
+          // Nhân viên chỉ được xem bảng lương không phải draft (đã được gửi duyệt trở lên)
+          query.filter.status = { _in: ['pending_approval', 'approved', 'paid'] };
         } else {
           // Không tìm thấy employee cho user này -> trả về rỗng
           return {
@@ -154,7 +157,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     });
   }
 
-  async get(id: string) {
+  async get(id: string, currentUser?: any) {
     // Use findOne with fields to populate relations
     const payroll = await this.repo.findOne({
       filter: { id: { _eq: id } },
@@ -163,6 +166,35 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     
     if (!payroll) {
       throw new HttpError(404, "Không tìm thấy bảng lương", "PAYROLL_NOT_FOUND");
+    }
+
+    // RBAC: Nếu là nhân viên thường, kiểm tra quyền xem
+    if (currentUser && currentUser.role?.name !== 'Administrator' && currentUser.role?.name !== 'Manager') {
+      // Nhân viên không được xem bảng lương draft
+      if (payroll.status === 'draft') {
+        throw new HttpError(403, "Bạn không có quyền xem bảng lương này", "FORBIDDEN");
+      }
+      
+      // Kiểm tra xem payroll có thuộc về employee của user hiện tại không
+      try {
+        const employees = await this.employeeRepo.findAll({
+          filter: { user_id: { _eq: currentUser.id } },
+          fields: ["id"],
+          limit: 1,
+        });
+        
+        const employeeIdFromPayroll = typeof payroll.employee_id === 'object' 
+          ? (payroll.employee_id as any).id 
+          : payroll.employee_id;
+        
+        if (employees.length === 0 || employees[0].id !== employeeIdFromPayroll) {
+          throw new HttpError(403, "Bạn không có quyền xem bảng lương này", "FORBIDDEN");
+        }
+      } catch (err: any) {
+        if (err?.code === "FORBIDDEN") throw err;
+        console.error("⚠️ Failed to check permission:", err);
+        throw new HttpError(403, "Không thể xác minh quyền truy cập", "FORBIDDEN");
+      }
     }
     
     // Handle employee population
