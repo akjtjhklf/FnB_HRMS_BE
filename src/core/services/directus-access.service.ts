@@ -1,4 +1,4 @@
-import { directus, getAuthToken } from "../../utils/directusClient";
+import { adminDirectus as directus, getAuthToken } from "../../utils/directusClient";
 import { createItem, createItems, readItems, deleteItem } from "@directus/sdk";
 import { HttpError } from "../base";
 

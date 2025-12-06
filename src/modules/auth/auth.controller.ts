@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import { HttpError } from "../../core/base";
 import { ApiResponse } from "../../core/response";
-import { directus } from "../../utils/directusClient";
+import { directus } from "../../utils/directusClient"; // Use directus with authentication for login/logout
 import { sendError } from "../../core/response";
 import authService from "./auth.service";
-import { createDirectus, rest, staticToken } from "@directus/sdk";
+import { createDirectus, rest, authentication } from "@directus/sdk";
 
 export const login = async (
   req: Request,
@@ -13,7 +13,13 @@ export const login = async (
   const { email, password } = req.body;
 
   try {
-    const response = await directus.login({ email, password });
+    // Create a fresh client for each login to avoid state issues
+    const loginClient = createDirectus(process.env.DIRECTUS_URL!)
+      .with(authentication('json'))
+      .with(rest());
+    
+    // SDK v11 expects an object with email and password
+    const response = await loginClient.login({ email, password });
 
     // SDK mới trả về token trực tiếp
     const token = response.access_token;
@@ -35,9 +41,8 @@ export const logout = async (
   _req: Request,
   res: Response<ApiResponse<unknown>>
 ) => {
-  try {
-    await directus.logout();
-  } catch {}
+  // With static token admin client, there's no session to logout
+  // Just return success - the FE will clear its tokens
   return res.json({ success: true, data: { loggedOut: true } });
 };
 

@@ -7,7 +7,7 @@ import {
 } from "../../core/dto/pagination.dto";
 import { CreateFullEmployeeDto } from "./employee.dto";
 import UserService from "../users/user.service";
-import { directus as DirectusClient, getAuthToken } from "../../utils/directusClient";
+import { adminDirectus as DirectusClient, getAuthToken } from "../../utils/directusClient";
 import { createUser, readUsers, createItem, deleteItem, deleteItems, readItems, updateUser, updateItem } from "@directus/sdk";
 import DirectusAccessService from "../../core/services/directus-access.service";
 

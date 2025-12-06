@@ -20,7 +20,12 @@ import { SALARY_REQUESTS_COLLECTION } from '../salary-requests/salary-request.mo
 import { MONTHLY_EMPLOYEE_STATS_COLLECTION } from '../monthly-employee-stats/monthly-employee-stat.model';
 
 const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
-const directusToken = process.env.DIRECTUS_ADMIN_TOKEN || '';
+// Sử dụng DIRECTUS_TOKEN thay vì DIRECTUS_ADMIN_TOKEN (đồng bộ với .env)
+const directusToken = process.env.DIRECTUS_TOKEN || process.env.DIRECTUS_ADMIN_TOKEN || '';
+
+if (!directusToken) {
+  console.warn('⚠️ Analytics: No DIRECTUS_TOKEN found - API calls may fail with 403');
+}
 
 const directus = createDirectus(directusUrl).with(rest()).with(staticToken(directusToken));
 
@@ -383,42 +388,117 @@ export const getAttendanceAnalytics = async (
   filters: AnalyticsFilters
 ): Promise<AttendanceAnalytics> => {
   try {
-    // Use monthly_employee_stats for aggregated data
-    const stats = await directus.request(
-      readItems(MONTHLY_EMPLOYEE_STATS_COLLECTION, {
-        filter: buildMonthFilter(filters),
+    // Build filter for attendance_logs based on event_time
+    const logsFilter: any = {};
+    if (filters.startDate || filters.endDate) {
+      logsFilter.event_time = {};
+      if (filters.startDate) logsFilter.event_time._gte = `${filters.startDate}T00:00:00`;
+      if (filters.endDate) logsFilter.event_time._lte = `${filters.endDate}T23:59:59`;
+    }
+    if (filters.employeeId) {
+      logsFilter.employee_id = { _eq: filters.employeeId };
+    }
+
+    // Get all attendance logs
+    const logs = await directus.request(
+      readItems(ATTENDANCE_LOGS_COLLECTION, {
+        filter: logsFilter,
+        fields: ['id', 'employee_id', 'event_type', 'event_time'],
         limit: -1,
       })
     );
 
-    // Calculate summary
-    const totalShifts = stats.reduce((sum: number, s: any) => sum + (s.total_shifts_worked || 0), 0);
-    const totalLate = stats.reduce((sum: number, s: any) => sum + (s.late_count || 0), 0);
-    const totalAbsent = stats.reduce((sum: number, s: any) => sum + (s.absent_count || 0), 0);
+    // Group logs by employee and date to calculate stats
+    const employeeStats: Map<string, {
+      workDays: Set<string>;
+      clockIns: number;
+      clockOuts: number;
+      lateCount: number;
+    }> = new Map();
 
-    // TODO: Implement more detailed analytics with actual attendance_logs data
+    // Standard work start time (7:00 AM)
+    const WORK_START_HOUR = 7;
+    const LATE_THRESHOLD_MINUTES = 15; // Consider late if > 15 mins after start
+
+    logs.forEach((log: any) => {
+      const employeeId = log.employee_id;
+      const eventTime = new Date(log.event_time);
+      const dateKey = eventTime.toISOString().split('T')[0];
+
+      if (!employeeStats.has(employeeId)) {
+        employeeStats.set(employeeId, {
+          workDays: new Set(),
+          clockIns: 0,
+          clockOuts: 0,
+          lateCount: 0,
+        });
+      }
+
+      const stats = employeeStats.get(employeeId)!;
+      stats.workDays.add(dateKey);
+
+      if (log.event_type === 'clock_in') {
+        stats.clockIns++;
+        // Check if late (after 7:15 AM)
+        const hour = eventTime.getHours();
+        const minute = eventTime.getMinutes();
+        if (hour > WORK_START_HOUR || (hour === WORK_START_HOUR && minute > LATE_THRESHOLD_MINUTES)) {
+          stats.lateCount++;
+        }
+      } else if (log.event_type === 'clock_out') {
+        stats.clockOuts++;
+      }
+    });
+
+    // Calculate totals
+    let totalWorkDays = 0;
+    let totalLate = 0;
+    let totalPresent = 0;
+
+    const performanceList: EmployeePerformance[] = [];
+
+    employeeStats.forEach((stats, employeeId) => {
+      const workDays = stats.workDays.size;
+      totalWorkDays += workDays;
+      totalLate += stats.lateCount;
+      totalPresent += workDays; // Present = có clock_in
+
+      performanceList.push({
+        employeeId,
+        employeeName: 'Employee ' + employeeId.slice(0, 8),
+        attendanceRate: 100, // All logged are present
+        lateCount: stats.lateCount,
+        absentCount: 0,
+        totalShifts: workDays,
+      });
+    });
+
+    // Sort for top/bottom performers
+    const topPerformers = [...performanceList]
+      .sort((a, b) => a.lateCount - b.lateCount) // Less late = better
+      .slice(0, 10);
+
+    const needsImprovement = [...performanceList]
+      .sort((a, b) => b.lateCount - a.lateCount) // More late = needs improvement
+      .filter(p => p.lateCount > 0)
+      .slice(0, 10);
+
     const attendanceTrend: TimeSeriesData[] = [];
     const lateTrend: TimeSeriesData[] = [];
-    const lateByDayOfWeek: any[] = [];
-    const attendanceByShift: any[] = [];
-    
-    // Get performance rankings
-    const topPerformers = getTopPerformers(stats, 10);
-    const needsImprovement = getBottomPerformers(stats, 10);
 
     return {
-      totalWorkDays: totalShifts,
-      totalPresent: totalShifts - totalAbsent,
-      totalLate: totalLate,
-      totalAbsent: totalAbsent,
+      totalWorkDays,
+      totalPresent,
+      totalLate,
+      totalAbsent: 0, // Need schedule data to calculate absent
       totalOnLeave: 0,
-      attendanceRate: totalShifts > 0 ? ((totalShifts - totalAbsent) / totalShifts) * 100 : 0,
-      lateRate: totalShifts > 0 ? (totalLate / totalShifts) * 100 : 0,
-      absentRate: totalShifts > 0 ? (totalAbsent / totalShifts) * 100 : 0,
+      attendanceRate: totalWorkDays > 0 ? 100 : 0, // All logged are present
+      lateRate: totalPresent > 0 ? (totalLate / totalPresent) * 100 : 0,
+      absentRate: 0,
       attendanceTrend,
       lateTrend,
-      lateByDayOfWeek,
-      attendanceByShift,
+      lateByDayOfWeek: [],
+      attendanceByShift: [],
       topPerformers,
       needsImprovement,
     };
@@ -548,18 +628,20 @@ export const getScheduleAnalytics = async (
       if (filters.endDate) requestFilter.created_at._lte = `${filters.endDate}T23:59:59`;
     }
 
+    // Chỉ fetch fields cơ bản để tránh lỗi permission với field 'type'
     const changeRequests = await directus.request(
       readItems(SCHEDULE_CHANGE_REQUESTS_COLLECTION, {
         filter: requestFilter,
-        fields: ['id', 'status', 'type'],
+        fields: ['id', 'status'],
         limit: -1,
       })
     );
 
     const totalChangeRequests = changeRequests.length;
     const approvedChangeRequests = changeRequests.filter((r: any) => r.status === 'approved').length;
-    const swapRequests = changeRequests.filter((r: any) => r.type === 'shift_swap').length;
-    const approvedSwapRequests = changeRequests.filter((r: any) => r.type === 'shift_swap' && r.status === 'approved').length;
+    // Không có field 'type' trong Directus, set default values
+    const swapRequests = 0;
+    const approvedSwapRequests = 0;
 
     // Calculate average shifts per employee
     const uniqueEmployees = new Set(assignments.map((a: any) => a.employee_id)).size;
@@ -631,14 +713,17 @@ export const getSalaryAnalytics = async (
         const scheme = schemeMap.get(emp.scheme_id);
         let estimatedMonthly = 0;
         
+        // Parse rate as number (có thể là string từ DB)
+        const rate = parseFloat(scheme.rate) || 0;
+        
         if (scheme.pay_type === 'monthly') {
-          estimatedMonthly = scheme.rate;
+          estimatedMonthly = rate;
         } else if (scheme.pay_type === 'hourly') {
           // Estimate: rate * 8 hours * 22 days
-          estimatedMonthly = scheme.rate * 8 * 22;
+          estimatedMonthly = rate * 8 * 22;
         } else if (scheme.pay_type === 'fixed_shift') {
            // Estimate: rate * 22 shifts
-           estimatedMonthly = scheme.rate * 22;
+           estimatedMonthly = rate * 22;
         }
 
         totalBaseSalary += estimatedMonthly;

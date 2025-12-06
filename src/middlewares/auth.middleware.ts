@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { HttpError } from "../core/base";
 import { ApiResponse } from "../core/response";
 import { createDirectus, rest, staticToken, readMe, readItems, authentication } from "@directus/sdk";
-import { directus } from "../utils/directusClient";
+import { adminDirectus as directus } from "../utils/directusClient";
 
 // Optional stub: validate API key if provided
 export function apiKeyAuth(optional = true) {

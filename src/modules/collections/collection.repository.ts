@@ -1,5 +1,5 @@
 import axios from "axios";
-import { directus } from "../../utils/directusClient";
+import { adminDirectus as directus } from "../../utils/directusClient";
 import { DirectusCollection, COLLECTIONS_ENDPOINT } from "./collection.model";
 import { HttpError } from "../../core/base";
 

@@ -22,7 +22,14 @@ export function checkPermission(action: string, collection: string) {
         return next(new HttpError(401, "Unauthorized", "UNAUTHORIZED"));
       }
 
-      // Lấy full identity
+      // Kiểm tra admin_access từ JWT token trước (không cần query DB)
+      const user = (req as any).user;
+      if (user?.admin_access === true) {
+        // Admin có full quyền, bypass permission check
+        return next();
+      }
+
+      // Lấy full identity cho non-admin users
       const identity = await authService.getUserIdentity(directusClient);
 
       // Cache identity vào request để tránh phải query lại
@@ -59,6 +66,12 @@ export function checkAnyPermission(requiredPerms: Array<{ action: string, collec
         return next(new HttpError(401, "Unauthorized", "UNAUTHORIZED"));
       }
 
+      // Kiểm tra admin_access từ JWT token trước
+      const user = (req as any).user;
+      if (user?.admin_access === true) {
+        return next();
+      }
+
       const identity = await authService.getUserIdentity(directusClient);
       (req as any).identity = identity;
 
@@ -88,6 +101,12 @@ export function checkAllPermissions(requiredPerms: Array<{ action: string, colle
         return next(new HttpError(401, "Unauthorized", "UNAUTHORIZED"));
       }
 
+      // Kiểm tra admin_access từ JWT token trước
+      const user = (req as any).user;
+      if (user?.admin_access === true) {
+        return next();
+      }
+
       const identity = await authService.getUserIdentity(directusClient);
       (req as any).identity = identity;
 
@@ -115,6 +134,12 @@ export function requireAdmin() {
       
       if (!directusClient) {
         return next(new HttpError(401, "Unauthorized", "UNAUTHORIZED"));
+      }
+
+      // Kiểm tra admin_access từ JWT token trước (không cần query DB)
+      const user = (req as any).user;
+      if (user?.admin_access === true) {
+        return next();
       }
 
       const identity = await authService.getUserIdentity(directusClient);

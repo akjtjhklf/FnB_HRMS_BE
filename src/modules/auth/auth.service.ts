@@ -1,4 +1,4 @@
-import { directus } from "../../utils/directusClient";
+import { adminDirectus as directus } from "../../utils/directusClient";
 import { readMe, readItems, readPolicy, readPermissions } from "@directus/sdk";
 import {
   UserIdentityDto,
@@ -38,40 +38,61 @@ export class AuthService {
         throw new HttpError(401, "User not found", "UNAUTHORIZED");
       }
 
-      // 2. Lấy employee liên kết (nếu có) - SỬ DỤNG ADMIN CLIENT để bypass permission
+      // 2. Lấy employee liên kết (nếu có) - SỬ DỤNG ADMIN TOKEN để bypass permission
       let employee: Employee | null = null;
+      const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+      const adminToken = process.env.DIRECTUS_TOKEN;
+      
       if (user.employee_id) {
         console.log(`📊 user.employee_id exists: ${user.employee_id}`);
         try {
-          // Dùng admin directus client thay vì user client
-          const employees = await directus.request(
-            readItems<any, any, any>("employees", {
-              filter: { id: { _eq: user.employee_id } },
-              fields: ["*"] as any,
-              limit: 1,
-            })
-          );
-          employee = (employees?.[0] as Employee) || null;
+          // Dùng admin token để fetch employee
+          const url = new URL(`${directusUrl}/items/employees`);
+          url.searchParams.append('filter', JSON.stringify({ id: { _eq: user.employee_id } }));
+          url.searchParams.append('fields', '*');
+          url.searchParams.append('limit', '1');
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'Authorization': `Bearer ${adminToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            employee = data?.data?.[0] || null;
+          }
         } catch (error) {
           console.error("❌ Error fetching employee:", error);
         }
       } else {
-        // Fallback: tìm employee theo user_id - SỬ DỤNG ADMIN CLIENT
+        // Fallback: tìm employee theo user_id - SỬ DỤNG ADMIN TOKEN
         console.log(`📊 Looking for employee with user_id: ${user.id}`);
         try {
-          // Dùng admin directus client thay vì user client
-          const employees = await directus.request(
-            readItems<any, any, any>("employees", {
-              filter: { user_id: { _eq: user.id } },
-              fields: ["*"] as any,
-              limit: 1,
-            })
-          );
-          console.log(`📊 Found ${employees?.length || 0} employees`);
-          if (employees && employees.length > 0) {
-            console.log(`📊 Employee found:`, JSON.stringify(employees[0], null, 2));
+          const url = new URL(`${directusUrl}/items/employees`);
+          url.searchParams.append('filter', JSON.stringify({ user_id: { _eq: user.id } }));
+          url.searchParams.append('fields', '*');
+          url.searchParams.append('limit', '1');
+          
+          const response = await fetch(url.toString(), {
+            headers: {
+              'Authorization': `Bearer ${adminToken}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const employees = data?.data || [];
+            console.log(`📊 Found ${employees.length} employees`);
+            if (employees.length > 0) {
+              console.log(`📊 Employee found:`, JSON.stringify(employees[0], null, 2));
+            }
+            employee = employees[0] || null;
+          } else {
+            console.error("❌ Error fetching employee by user_id:", await response.text());
           }
-          employee = (employees?.[0] as Employee) || null;
         } catch (error) {
           console.error("❌ Error fetching employee by user_id:", error);
         }

@@ -114,7 +114,7 @@ export async function cascadeDelete(
   visited.add(visitKey);
 
   // Import directus client from utils
-  const { directus } = await import('./directusClient');
+  const { adminDirectus: directus } = await import('./directusClient');
   const client = directus;
 
   const deletedTables: string[] = [];
