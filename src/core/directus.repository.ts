@@ -384,46 +384,73 @@ export class DirectusRepository<
 
   /**
    * Tạo nhiều items cùng lúc
-   * NOTE: Directus SDK v11 createItems() có bug - chỉ trả về 1 item
-   * Workaround: Loop tạo từng item một
+   * WORKAROUND: Directus SDK có bug trả về cached response object
+   * Solution: Query lại DB để lấy actual created items thay vì tin response
    */
   async createMany(data: Partial<T>[]): Promise<T[]> {
     try {
       console.log(`📝 Creating ${data.length} items in ${this.collection}`);
       console.log(`📋 First item sample:`, JSON.stringify(data[0], null, 2));
       
-      // WORKAROUND: Directus SDK v11 createItems bug - use loop instead
-      const created: T[] = [];
+      // Lưu timestamp TRƯỚC khi tạo - trừ 2 giây buffer để tránh race condition
+      const timestampDate = new Date();
+      timestampDate.setSeconds(timestampDate.getSeconds() - 2);
+      const timestampBefore = timestampDate.toISOString();
+      
+      // Tạo từng item - không lưu response vì bị cache bug
       for (let i = 0; i < data.length; i++) {
         try {
           const createReq: any = (createItem as any)(this.collection as any, data[i]);
-          const item = await this.client.request(createReq);
+          await this.client.request(createReq);
           
-          if (!item) {
-            throw new Error(`Item ${i + 1} returned null/undefined`);
-          }
-          
-          created.push(item as T);
-          
-          // Log progress every 10 items or at start/end
+          // Log progress
           if (i === 0 || i === data.length - 1 || (i + 1) % 10 === 0) {
-            console.log(`   ✅ Created ${i + 1}/${data.length} (ID: ${(item as any)?.id || 'NO ID'})`);
+            console.log(`   ✅ Created ${i + 1}/${data.length}`);
           }
           
         } catch (itemError: any) {
           console.error(`   ❌ Failed to create item ${i + 1}:`, itemError?.message || itemError);
-          console.error(`   📋 Failed item data:`, JSON.stringify(data[i], null, 2));
-          throw itemError; // Re-throw to stop batch
+          throw itemError;
         }
       }
       
-      console.log(`✅ Successfully created ${created.length} items in ${this.collection}`);
-      if (Array.isArray(created) && created.length > 0) {
-        console.log(`   First item: ${created[0]?.id || 'NO ID'}`);
-        console.log(`   Last item: ${created[created.length - 1]?.id || 'NO ID'}`);
+      // Chờ 100ms để đảm bảo DB đã commit
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Query lại DB để lấy actual items vừa tạo
+      console.log(`🔍 Querying DB for created items since ${timestampBefore}...`);
+      const created = await this.findAll({
+        filter: {
+          created_at: { _gte: timestampBefore }
+        },
+        sort: ['-created_at'],
+        limit: data.length + 50 // larger buffer
+      });
+      
+      // Lọc lấy đúng số lượng cần thiết (có thể có items cũ từ buffer time)
+      const result = created.slice(0, data.length);
+      
+      console.log(`✅ Retrieved ${result.length} items from DB (queried ${created.length})`);
+      if (result.length > 0) {
+        console.log(`   First item: ${(result[0] as any)?.id || 'NO ID'}`);
+        console.log(`   Last item: ${(result[result.length - 1] as any)?.id || 'NO ID'}`);
+        
+        // Verify uniqueness
+        const ids = result.map((item: any) => item.id);
+        const uniqueIds = new Set(ids);
+        if (uniqueIds.size !== ids.length) {
+          console.error(`❌ Found ${ids.length - uniqueIds.size} duplicate IDs in DB query!`);
+        } else {
+          console.log(`   ✅ All ${ids.length} IDs are unique`);
+        }
       }
       
-      return created;
+      // Warn nếu thiếu items
+      if (result.length < data.length) {
+        console.warn(`⚠️ Warning: Expected ${data.length} items but only got ${result.length}`);
+      }
+      
+      return result;
     } catch (error: any) {
       console.error(`❌ Directus createMany error for ${this.collection}:`, error?.errors?.[0]?.message || error?.message);
       if (error?.errors) {

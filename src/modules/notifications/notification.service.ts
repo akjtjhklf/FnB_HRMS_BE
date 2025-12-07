@@ -62,11 +62,14 @@ export class NotificationService extends BaseService<Notification> {
     }
 
     try {
+      // Default URL if not provided (Novu requires non-empty actionUrl)
+      const defaultActionUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      
       // Determine recipients and send
       const payload = {
         title: notification.title,
         message: notification.message,
-        actionUrl: notification.action_url,
+        actionUrl: notification.action_url || notification.link || `${defaultActionUrl}`,
       };
 
       if (notification.recipient_type === RECIPIENT_TYPE.ALL) {

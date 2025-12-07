@@ -296,44 +296,70 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       
     } else if (isAdjustmentRequest) {
       // Cập nhật bảng lương
+      console.log('🔍 [SalaryRequest] Processing adjustment:', {
+        payroll_id: request.payroll_id,
+        adjustment_amount: request.adjustment_amount,
+        adjustment_amount_type: typeof request.adjustment_amount,
+      });
+      
       if (request.payroll_id && request.adjustment_amount) {
-        // @ts-ignore - Directus SDK type issue with dynamic collection names
-        const readPayrollReq = readItem("monthly_payrolls", request.payroll_id);
-        const payroll = await directus.request(readPayrollReq) as any;
-        if (payroll) {
-           // Cộng vào bonuses hoặc deductions tuỳ dấu?
-           // Giả sử adjustment_amount có thể âm hoặc dương.
-           // Nếu dương -> bonuses, âm -> deductions?
-           // Hoặc cộng thẳng vào net_salary?
-           // Tốt nhất là cộng vào bonuses (nếu dương) hoặc deductions (nếu âm).
-           // Nhưng để đơn giản, ta cộng vào bonuses (nếu âm thì bonuses giảm, hoặc dùng field adjustment riêng nếu có).
-           // Vì model MonthlyPayroll có bonuses và deductions.
-           
-           let newBonuses = (payroll.bonuses || 0);
-           let newDeductions = (payroll.deductions || 0);
-           
-           if (request.adjustment_amount > 0) {
-             newBonuses += request.adjustment_amount;
-           } else {
-             newDeductions += Math.abs(request.adjustment_amount);
-           }
-           
-           // Recalculate gross/net?
-           // MonthlyPayrollService logic calculates: gross = base + allowances + bonuses + overtime
-           // net = gross - deductions - penalties
-           
-           const gross_salary = (payroll.base_salary || 0) + (payroll.allowances || 0) + newBonuses + (payroll.overtime_pay || 0);
-           const net_salary = gross_salary - newDeductions - (payroll.penalties || 0);
-           
-           // @ts-ignore - Directus SDK type issue with dynamic collection names
-           const updatePayrollReq = updateItem("monthly_payrolls", request.payroll_id, {
-             bonuses: newBonuses,
-             deductions: newDeductions,
-             gross_salary,
-             net_salary
-           });
-           await directus.request(updatePayrollReq);
+        try {
+          // @ts-ignore - Directus SDK type issue with dynamic collection names
+          const readPayrollReq = readItem("monthly_payrolls", request.payroll_id);
+          const payroll = await directus.request(readPayrollReq) as any;
+          
+          console.log('📄 [SalaryRequest] Fetched payroll:', payroll);
+          
+          if (payroll) {
+             // Parse adjustment_amount to number (từ DB là string DECIMAL)
+             const adjustmentAmount = parseFloat(String(request.adjustment_amount)) || 0;
+             
+             // Cộng vào bonuses hoặc deductions tuỳ dấu
+             let newBonuses = parseFloat(String(payroll.bonuses || 0));
+             let newDeductions = parseFloat(String(payroll.deductions || 0));
+             
+             if (adjustmentAmount > 0) {
+               newBonuses += adjustmentAmount;
+             } else {
+               newDeductions += Math.abs(adjustmentAmount);
+             }
+             
+             // Recalculate gross/net
+             const baseSalary = parseFloat(String(payroll.base_salary || 0));
+             const allowances = parseFloat(String(payroll.allowances || 0));
+             const overtimePay = parseFloat(String(payroll.overtime_pay || 0));
+             const penalties = parseFloat(String(payroll.penalties || 0));
+             
+             const gross_salary = baseSalary + allowances + newBonuses + overtimePay;
+             const net_salary = gross_salary - newDeductions - penalties;
+             
+             console.log('💰 [SalaryRequest] Updating payroll:', {
+               adjustmentAmount,
+               newBonuses,
+               newDeductions,
+               gross_salary,
+               net_salary,
+             });
+             
+             // @ts-ignore - Directus SDK type issue with dynamic collection names
+             const updatePayrollReq = updateItem("monthly_payrolls", request.payroll_id, {
+               bonuses: newBonuses,
+               deductions: newDeductions,
+               gross_salary,
+               net_salary
+             });
+             await directus.request(updatePayrollReq);
+             
+             console.log('✅ [SalaryRequest] Payroll updated successfully');
+          } else {
+             console.warn('⚠️ [SalaryRequest] Payroll not found:', request.payroll_id);
+          }
+        } catch (payrollError: any) {
+          console.error('❌ [SalaryRequest] Error updating payroll:', payrollError?.message || payrollError);
+          throw new HttpError(500, `Lỗi cập nhật bảng lương: ${payrollError?.message || 'Unknown error'}`, 'PAYROLL_UPDATE_ERROR');
         }
+      } else {
+        console.log('ℹ️ [SalaryRequest] No payroll_id or adjustment_amount, skipping payroll update');
       }
     }
 
