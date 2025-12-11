@@ -52,7 +52,12 @@ export class AttendanceAdjustmentsService extends BaseService<AttendanceAdjustme
 
     const proposed = adjustment.proposed_value as any;
     
-    await attendanceService.manualAdjust(adjustment.attendance_shift_id, {
+    // Handle case where attendance_shift_id is an object (from joined data) or a string
+    const attendanceShiftId = typeof adjustment.attendance_shift_id === 'object' 
+      ? (adjustment.attendance_shift_id as any).id 
+      : adjustment.attendance_shift_id;
+    
+    await attendanceService.manualAdjust(attendanceShiftId, {
         clock_in: proposed.clock_in,
         clock_out: proposed.clock_out,
         notes: adjustment.reason || undefined,
