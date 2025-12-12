@@ -35,19 +35,41 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
   }
 
   async create(data: Partial<EmployeeAvailability> & { positions?: string[] }) {
-    // kiểm tra trùng employee_id + shift_id nếu cần
-    const existing = await this.repo.findAll({
+    // ============================================
+    // 🔍 DUPLICATE CHECK - Kiểm tra trùng lặp
+    // ============================================
+    console.log(`\n🔍 [EmployeeAvailability] ====== CREATE REQUEST ======`);
+    console.log(`   Incoming data:`, JSON.stringify(data, null, 2));
+    console.log(`   Employee ID: ${data.employee_id}`);
+    console.log(`   Shift ID: ${data.shift_id}`);
+
+    const filterQuery = {
       filter: {
         employee_id: { _eq: data.employee_id },
         shift_id: { _eq: data.shift_id },
       },
-    });
-    if (existing.length > 0)
+    };
+    console.log(`   Filter query:`, JSON.stringify(filterQuery, null, 2));
+
+    // Use findOne instead of findAll for more explicit and reliable querying
+    // This helps avoid potential caching issues with array results
+    const existing = await this.repo.findOne(filterQuery);
+
+    console.log(`   Existing record found: ${existing ? 'YES' : 'NO'}`);
+    if (existing) {
+      console.log(`   Existing record:`, JSON.stringify(existing, null, 2));
+      console.log(`   ❌ Duplicate detected - rejecting registration`);
+    }
+
+    if (existing) {
       throw new HttpError(
         409,
-        "Nhân viên này đã có đăng ký khả dụng cho ca này",
+        `Nhân viên này đã đăng ký khả dụng cho ca làm việc này (Shift ID: ${data.shift_id})`,
         "DUPLICATE_AVAILABILITY"
       );
+    }
+
+    console.log(`   ✅ No duplicate found - proceeding with registration`);
 
     // Extract positions array (nếu có)
     const { positions, ...availabilityData } = data;
@@ -58,7 +80,7 @@ export class EmployeeAvailabilityService extends BaseService<EmployeeAvailabilit
     // Step 2: Nếu có positions, tạo employee-availability-positions records
     if (positions && positions.length > 0) {
       const client = (this.repo as any).client;
-      
+
       for (let i = 0; i < positions.length; i++) {
         await client.request((createItem as any)('employee_availability_positions', {
           availability_id: availability.id,
