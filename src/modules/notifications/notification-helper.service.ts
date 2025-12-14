@@ -3,6 +3,7 @@ import NotificationLogRepository from "./notification-log.repository";
 import { DirectusRepository } from "../../core/directus.repository";
 import { adminDirectus as directus } from "../../utils/directusClient";
 import { readItems } from "@directus/sdk";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 /**
  * Notification Types - Add more as needed
@@ -11,26 +12,27 @@ export enum NotificationType {
   // System
   SYSTEM = "SYSTEM",
   ANNOUNCEMENT = "ANNOUNCEMENT",
-  
+
   // Payroll
   PAYSLIP_READY = "PAYSLIP_READY",
   PAYSLIP_UPDATED = "PAYSLIP_UPDATED",
-  
+  PAYROLL_PENDING_REVIEW = "PAYROLL_PENDING_REVIEW",
+
   // Salary Request
   SALARY_INCREASE_REQUEST = "SALARY_INCREASE_REQUEST",
   SALARY_INCREASE_APPROVED = "SALARY_INCREASE_APPROVED",
   SALARY_INCREASE_REJECTED = "SALARY_INCREASE_REJECTED",
-  
+
   // Leave/Attendance
   LEAVE_REQUEST = "LEAVE_REQUEST",
   LEAVE_APPROVED = "LEAVE_APPROVED",
   LEAVE_REJECTED = "LEAVE_REJECTED",
   ATTENDANCE_REMINDER = "ATTENDANCE_REMINDER",
-  
+
   // Schedule
   SCHEDULE_UPDATED = "SCHEDULE_UPDATED",
   SHIFT_ASSIGNED = "SHIFT_ASSIGNED",
-  
+
   // Contract
   CONTRACT_EXPIRING = "CONTRACT_EXPIRING",
   CONTRACT_RENEWED = "CONTRACT_RENEWED",
@@ -105,7 +107,7 @@ export class NotificationHelperService {
       type: options.type,
       actionUrl: options.actionUrl || "",
       data: options.data || {},
-      timestamp: new Date().toISOString(),
+      timestamp: now().format(DATE_FORMATS.DATETIME),
     };
   }
 
@@ -399,6 +401,27 @@ export class NotificationHelperService {
       message: "Phiếu lương của bạn đã sẵn sàng để xem",
       actionUrl: `/salary/${payslipData.payslipId}/view`,
       data: payslipData,
+    });
+  }
+
+  /**
+   * Notify employee when their payroll is pending approval/review
+   * They can check and request adjustments if needed
+   */
+  async notifyPayrollPendingApproval(employeeId: string, payrollData: {
+    month: string; // Format: YYYY-MM
+    payrollId: string;
+  }): Promise<void> {
+    // Parse month for display (e.g., "2025-11" -> "11/2025")
+    const [year, month] = payrollData.month.split('-');
+    const displayMonth = `${month}/${year}`;
+
+    await this.notifyEmployee(employeeId, {
+      type: NotificationType.PAYROLL_PENDING_REVIEW,
+      title: `Bảng lương tháng ${displayMonth} cần xem xét`,
+      message: "Bảng lương của bạn đang chờ duyệt. Vui lòng kiểm tra và yêu cầu điều chỉnh nếu cần.",
+      actionUrl: `/salary/${payrollData.payrollId}`,
+      data: payrollData,
     });
   }
 

@@ -6,6 +6,7 @@ import {
   PaginatedResponse,
   PaginationQueryDto,
 } from "../../core/dto/pagination.dto";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 export class FileService extends BaseService<FileEntity> {
   constructor(repo = new FileRepository()) {
@@ -56,7 +57,7 @@ export class FileService extends BaseService<FileEntity> {
         format: result.format,
         url: result.secure_url,
       },
-      uploaded_on: new Date().toISOString(),
+      uploaded_on: now().format(DATE_FORMATS.DATETIME),
     };
 
     return await this.repo.create(entity);
@@ -72,7 +73,7 @@ export class FileService extends BaseService<FileEntity> {
     if (public_id) {
       await (cloudinary.uploader as any)
         .destroy(public_id, { invalidate: true })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     await this.repo.delete(id);

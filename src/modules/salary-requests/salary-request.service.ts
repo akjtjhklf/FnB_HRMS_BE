@@ -10,6 +10,7 @@ import { adminDirectus as directus } from "../../utils/directusClient";
 import { getNotificationHelper, NotificationType } from "../notifications";
 
 import EmployeeRepository from "../employees/employee.repository";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 export class SalaryRequestService extends BaseService<SalaryRequest> {
   private employeeRepo: EmployeeRepository;
@@ -41,7 +42,7 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
           },
           fields: ["id"]
         });
-        
+
         if (matchingEmployees.length > 0) {
           const employeeFilter = matchingEmployees.map(e => e.id);
           // Add employee filter to query
@@ -135,7 +136,7 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
         fields: ["id"],
         limit: 1,
       });
-      
+
       if (employees.length === 0) {
         throw new HttpError(
           403,
@@ -143,9 +144,9 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
           "EMPLOYEE_NOT_FOUND"
         );
       }
-      
+
       const myEmployeeId = employees[0].id;
-      
+
       // Kiểm tra employee_id trong request có phải là của chính mình không
       if (data.employee_id && data.employee_id !== myEmployeeId) {
         throw new HttpError(
@@ -154,7 +155,7 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
           "FORBIDDEN"
         );
       }
-      
+
       // Gán employee_id nếu chưa có
       data.employee_id = myEmployeeId;
     }
@@ -163,10 +164,10 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
 
     // Send notification to managers
     try {
-      const employee = data.employee_id 
+      const employee = data.employee_id
         ? await this.employeeRepo.findById(data.employee_id as string)
         : null;
-      
+
       if (employee) {
         const notificationHelper = getNotificationHelper();
         await notificationHelper.notifySalaryIncreaseRequest(
@@ -251,19 +252,19 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       // Cập nhật contract hoặc tạo contract mới?
       // User yêu cầu: "Cập nhật lại contract hiện tại hoặc tạo contract amendment."
       // Ở đây ta cập nhật contract hiện tại (base_salary)
-      
+
       // Get employee_id as string (in case it's populated object)
-      const employeeId = typeof request.employee_id === 'object' 
-        ? (request.employee_id as any).id 
+      const employeeId = typeof request.employee_id === 'object'
+        ? (request.employee_id as any).id
         : request.employee_id;
-      
+
       console.log('🔍 [SalaryRequest] Approving raise request:', {
         requestId: id,
         employeeId,
         proposed_rate: request.proposed_rate,
         type: request.type,
       });
-      
+
       // Tìm contract active của employee using Directus SDK
       // @ts-ignore - Directus SDK type issue with dynamic collection names
       const readContractsReq = readItems("contracts", {
@@ -274,82 +275,108 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
         limit: 1,
       });
       const contracts = await directus.request(readContractsReq) as any[];
-      
+
       console.log('📄 [SalaryRequest] Found contracts:', contracts);
-      
+
       const contract = contracts?.[0];
       if (contract && request.proposed_rate) {
         console.log('✏️ [SalaryRequest] Updating contract:', contract.id, 'with base_salary:', request.proposed_rate);
-        
+
         // Use Directus SDK properly
         // @ts-ignore - Directus SDK type issue with dynamic collection names
         const updateReq = updateItem("contracts", contract.id, {
           base_salary: request.proposed_rate,
         });
         await directus.request(updateReq);
-        
+
         console.log('✅ [SalaryRequest] Contract updated successfully');
       } else {
         // Nếu không có contract, có thể log warning hoặc tạo mới (tuỳ business logic)
         console.warn(`⚠️ No active contract found for employee ${employeeId} to apply raise, or proposed_rate is missing.`);
       }
-      
+
     } else if (isAdjustmentRequest) {
       // Cập nhật bảng lương
+      console.log('🔍 [SalaryRequest] Processing adjustment:', {
+        payroll_id: request.payroll_id,
+        adjustment_amount: request.adjustment_amount,
+        adjustment_amount_type: typeof request.adjustment_amount,
+      });
+
       if (request.payroll_id && request.adjustment_amount) {
-        // @ts-ignore - Directus SDK type issue with dynamic collection names
-        const readPayrollReq = readItem("monthly_payrolls", request.payroll_id);
-        const payroll = await directus.request(readPayrollReq) as any;
-        if (payroll) {
-           // Cộng vào bonuses hoặc deductions tuỳ dấu?
-           // Giả sử adjustment_amount có thể âm hoặc dương.
-           // Nếu dương -> bonuses, âm -> deductions?
-           // Hoặc cộng thẳng vào net_salary?
-           // Tốt nhất là cộng vào bonuses (nếu dương) hoặc deductions (nếu âm).
-           // Nhưng để đơn giản, ta cộng vào bonuses (nếu âm thì bonuses giảm, hoặc dùng field adjustment riêng nếu có).
-           // Vì model MonthlyPayroll có bonuses và deductions.
-           
-           let newBonuses = (payroll.bonuses || 0);
-           let newDeductions = (payroll.deductions || 0);
-           
-           if (request.adjustment_amount > 0) {
-             newBonuses += request.adjustment_amount;
-           } else {
-             newDeductions += Math.abs(request.adjustment_amount);
-           }
-           
-           // Recalculate gross/net?
-           // MonthlyPayrollService logic calculates: gross = base + allowances + bonuses + overtime
-           // net = gross - deductions - penalties
-           
-           const gross_salary = (payroll.base_salary || 0) + (payroll.allowances || 0) + newBonuses + (payroll.overtime_pay || 0);
-           const net_salary = gross_salary - newDeductions - (payroll.penalties || 0);
-           
-           // @ts-ignore - Directus SDK type issue with dynamic collection names
-           const updatePayrollReq = updateItem("monthly_payrolls", request.payroll_id, {
-             bonuses: newBonuses,
-             deductions: newDeductions,
-             gross_salary,
-             net_salary
-           });
-           await directus.request(updatePayrollReq);
+        try {
+          // @ts-ignore - Directus SDK type issue with dynamic collection names
+          const readPayrollReq = readItem("monthly_payrolls", request.payroll_id);
+          const payroll = await directus.request(readPayrollReq) as any;
+
+          console.log('📄 [SalaryRequest] Fetched payroll:', payroll);
+
+          if (payroll) {
+            // Parse adjustment_amount to number (từ DB là string DECIMAL)
+            const adjustmentAmount = parseFloat(String(request.adjustment_amount)) || 0;
+
+            // Cộng vào bonuses hoặc deductions tuỳ dấu
+            let newBonuses = parseFloat(String(payroll.bonuses || 0));
+            let newDeductions = parseFloat(String(payroll.deductions || 0));
+
+            if (adjustmentAmount > 0) {
+              newBonuses += adjustmentAmount;
+            } else {
+              newDeductions += Math.abs(adjustmentAmount);
+            }
+
+            // Recalculate gross/net
+            const baseSalary = parseFloat(String(payroll.base_salary || 0));
+            const allowances = parseFloat(String(payroll.allowances || 0));
+            const overtimePay = parseFloat(String(payroll.overtime_pay || 0));
+            const penalties = parseFloat(String(payroll.penalties || 0));
+
+            const gross_salary = baseSalary + allowances + newBonuses + overtimePay;
+            const net_salary = gross_salary - newDeductions - penalties;
+
+            console.log('💰 [SalaryRequest] Updating payroll:', {
+              adjustmentAmount,
+              newBonuses,
+              newDeductions,
+              gross_salary,
+              net_salary,
+            });
+
+            // @ts-ignore - Directus SDK type issue with dynamic collection names
+            const updatePayrollReq = updateItem("monthly_payrolls", request.payroll_id, {
+              bonuses: newBonuses,
+              deductions: newDeductions,
+              gross_salary,
+              net_salary
+            });
+            await directus.request(updatePayrollReq);
+
+            console.log('✅ [SalaryRequest] Payroll updated successfully');
+          } else {
+            console.warn('⚠️ [SalaryRequest] Payroll not found:', request.payroll_id);
+          }
+        } catch (payrollError: any) {
+          console.error('❌ [SalaryRequest] Error updating payroll:', payrollError?.message || payrollError);
+          throw new HttpError(500, `Lỗi cập nhật bảng lương: ${payrollError?.message || 'Unknown error'}`, 'PAYROLL_UPDATE_ERROR');
         }
+      } else {
+        console.log('ℹ️ [SalaryRequest] No payroll_id or adjustment_amount, skipping payroll update');
       }
     }
 
     const updatedRequest = await this.repo.update(id, {
       status: "approved",
       approved_by,
-      approved_at: new Date().toISOString(),
+      approved_at: now().format(DATE_FORMATS.DATETIME),
       manager_note,
     });
 
     // Send notification to employee about approval
     try {
-      const employeeId = typeof request.employee_id === 'object' 
-        ? (request.employee_id as any).id 
+      const employeeId = typeof request.employee_id === 'object'
+        ? (request.employee_id as any).id
         : request.employee_id;
-      
+
       if (employeeId) {
         const notificationHelper = getNotificationHelper();
         await notificationHelper.notifySalaryRequestResult(
@@ -389,16 +416,16 @@ export class SalaryRequestService extends BaseService<SalaryRequest> {
       status: "rejected",
       approved_by: rejected_by, // Reuse approved_by for rejected_by or add new field? 
       // Model only has approved_by. Let's use it as "action_by".
-      approved_at: new Date().toISOString(),
+      approved_at: now().format(DATE_FORMATS.DATETIME),
       manager_note,
     });
 
     // Send notification to employee about rejection
     try {
-      const employeeId = typeof request.employee_id === 'object' 
-        ? (request.employee_id as any).id 
+      const employeeId = typeof request.employee_id === 'object'
+        ? (request.employee_id as any).id
         : request.employee_id;
-      
+
       if (employeeId) {
         const notificationHelper = getNotificationHelper();
         await notificationHelper.notifySalaryRequestResult(

@@ -255,19 +255,22 @@ export class AttendanceService extends BaseService<AttendanceShift> {
       updates.notes = data.notes;
     }
 
-    // Recalculate worked minutes if both exist
-    if (updates.clock_in && updates.clock_out) {
-      const start = dateUtil(updates.clock_in);
-      const end = dateUtil(updates.clock_out);
-      updates.worked_minutes = Math.floor(end.diff(start, "minute"));
-    } else if (updates.clock_in && record.clock_out) {
-        const start = dateUtil(updates.clock_in);
-        const end = dateUtil(record.clock_out);
+    // Recalculate worked minutes only when clock_in or clock_out is being updated
+    if (updates.clock_in || updates.clock_out) {
+      const finalClockIn = updates.clock_in || record.clock_in;
+      const finalClockOut = updates.clock_out || record.clock_out;
+      
+      if (finalClockIn && finalClockOut) {
+        const start = dateUtil(finalClockIn);
+        const end = dateUtil(finalClockOut);
+        
+        // Validate: clock_out must be after clock_in
+        if (end.isBefore(start)) {
+          throw new HttpError(400, "Giờ ra không thể trước giờ vào. Vui lòng kiểm tra lại ngày giờ.", "INVALID_TIME_RANGE");
+        }
+        
         updates.worked_minutes = Math.floor(end.diff(start, "minute"));
-    } else if (record.clock_in && updates.clock_out) {
-        const start = dateUtil(record.clock_in);
-        const end = dateUtil(updates.clock_out);
-        updates.worked_minutes = Math.floor(end.diff(start, "minute"));
+      }
     }
 
     return await this.repo.update(attendanceId, updates);

@@ -62,7 +62,7 @@ export class PolicyRepository extends DirectusRepository<Policy> {
       console.error("❌ Directus pagination error (policies):", error);
       throw new HttpError(
         500,
-        "Không thể lấy danh sách policies từ Directus",
+        "Không thể lấy danh sách chính sách từ Directus",
         "DIRECTUS_FETCH_ERROR",
         error
       );
@@ -88,7 +88,7 @@ export class PolicyRepository extends DirectusRepository<Policy> {
       console.error("❌ Directus findAll error (policies):", error);
       throw new HttpError(
         500,
-        "Không thể lấy danh sách policies từ Directus",
+        "Không thể lấy danh sách chính sách từ Directus",
         "DIRECTUS_FETCH_ERROR",
         error
       );

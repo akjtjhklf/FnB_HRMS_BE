@@ -37,10 +37,17 @@ export const createNotification = async (
 
     // Map body to message if provided (FE may send body instead of message)
     // Map recipient_ids to user_ids (FE uses recipient_ids, BE model uses user_ids)
-    const { body, message, send_immediately, recipient_ids, ...rest } = req.body;
+    const { body, message, send_immediately, recipient_ids, action_url, link, ...rest } = req.body;
+    
+    // Default action URL if not provided (Novu requires non-empty actionUrl)
+    const defaultActionUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const finalActionUrl = action_url || link || `${defaultActionUrl}`;
+    
     const notificationData = {
       ...rest,
       message: message || body, // Accept both 'message' and 'body'
+      action_url: finalActionUrl, // Ensure action_url is always set
+      link: finalActionUrl, // Also set link for compatibility
       user_ids: recipient_ids ? JSON.stringify(recipient_ids) : null, // Convert array to JSON string
       created_by: userId,
     };

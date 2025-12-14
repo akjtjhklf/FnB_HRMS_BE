@@ -8,6 +8,7 @@ import ScheduleChangeRequestRepository from "./schedule-change-request.repositor
 import ScheduleAssignmentRepository from "../schedule-assignments/schedule-assignment.repository";
 import { getNotificationHelper, NotificationType } from "../notifications";
 import EmployeeRepository from "../employees/employee.repository";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequest> {
   private assignmentRepo: ScheduleAssignmentRepository;
@@ -50,7 +51,7 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
       if (employeeId) {
         const employee = await this.employeeRepo.findById(employeeId);
         const notificationHelper = getNotificationHelper();
-        
+
         await notificationHelper.notifyManagers({
           type: NotificationType.LEAVE_REQUEST,
           title: "Yêu cầu thay đổi lịch làm việc",
@@ -115,7 +116,7 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
           "MISSING_ASSIGNMENT_IDS"
         );
       }
-      
+
       swapResult = await this.swapAssignments(
         request.from_assignment_id,
         request.to_assignment_id
@@ -126,7 +127,7 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
     const updatedRequest = await this.repo.update(requestId, {
       status: "approved",
       approved_by: approvedBy,
-      approved_at: new Date().toISOString(),
+      approved_at: now().format(DATE_FORMATS.DATETIME),
     });
 
     // Send notification to employee
@@ -143,16 +144,16 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
    */
   private async notifyRequestResult(request: ScheduleChangeRequest, approved: boolean) {
     try {
-      const employeeId = typeof request.requester_id === 'object' 
-        ? (request.requester_id as any).id 
+      const employeeId = typeof request.requester_id === 'object'
+        ? (request.requester_id as any).id
         : request.requester_id;
-      
+
       if (employeeId) {
         const notificationHelper = getNotificationHelper();
         await notificationHelper.notifyEmployee(employeeId, {
           type: approved ? NotificationType.LEAVE_APPROVED : NotificationType.LEAVE_REJECTED,
           title: approved ? "Yêu cầu được duyệt" : "Yêu cầu bị từ chối",
-          message: approved 
+          message: approved
             ? "Yêu cầu thay đổi lịch làm việc của bạn đã được duyệt"
             : "Yêu cầu thay đổi lịch làm việc của bạn đã bị từ chối",
           actionUrl: `/schedule-requests/${request.id}`,
@@ -223,7 +224,7 @@ export class ScheduleChangeRequestService extends BaseService<ScheduleChangeRequ
     const updatedRequest = await this.repo.update(requestId, {
       status: "rejected",
       approved_by: rejectedBy,
-      approved_at: new Date().toISOString(),
+      approved_at: now().format(DATE_FORMATS.DATETIME),
       reason: reason || request.reason,
     });
 

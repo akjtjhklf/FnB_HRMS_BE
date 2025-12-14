@@ -35,7 +35,7 @@ const directus = createDirectus(directusUrl).with(rest()).with(staticToken(direc
  */
 export const getOverviewStats = async (date?: string): Promise<OverviewStats> => {
   const today = date || new Date().toISOString().split('T')[0];
-  
+
   try {
     // Parallel queries for better performance
     const [
@@ -115,7 +115,7 @@ async function getAttendanceToday(date: string) {
   const logs = await directus.request(
     readItems(ATTENDANCE_LOGS_COLLECTION, {
       filter: {
-        event_time: { 
+        event_time: {
           _gte: startOfDay,
           _lte: endOfDay
         },
@@ -126,7 +126,7 @@ async function getAttendanceToday(date: string) {
   );
 
   const total = logs.length;
-  
+
   // Calculate present employees (unique employees who have clocked in)
   const presentEmployees = new Set(
     logs
@@ -134,13 +134,13 @@ async function getAttendanceToday(date: string) {
       .map((l: any) => l.employee_id)
       .filter(Boolean)
   );
-  
+
   const presentCount = presentEmployees.size;
 
   // We cannot easily determine late/absent without joining with shifts and calculating time diffs
   // For now, we'll return 0 for late/absent to avoid errors, or simple placeholders
-  const late = 0; 
-  const absent = 0; 
+  const late = 0;
+  const absent = 0;
 
   return {
     totalAttendanceToday: total,
@@ -176,7 +176,7 @@ async function getShiftsToday(date: string) {
 
   const total = assignments.length;
   const uniqueEmployees = new Set(assignments.map((a: any) => a.employee_id)).size;
-  
+
   // Statuses are: "assigned" | "tentative" | "swapped" | "cancelled"
   // We don't have "completed" status in assignments table yet. 
   // Assuming "assigned" means scheduled.
@@ -238,7 +238,7 @@ export const getEmployeeAnalytics = async (
     const byStatus = calculateStatusDistribution(employees);
     const byGender = calculateGenderDistribution(employees);
     const tenureDistribution = calculateTenureDistribution(employees);
-    
+
     // TODO: Fetch position and department data when available
     const byPosition: any[] = [];
     const byDepartment: any[] = [];
@@ -270,22 +270,22 @@ export const getEmployeeAnalytics = async (
  */
 function buildEmployeeFilter(filters: AnalyticsFilters) {
   const filter: any = {};
-  
+
   if (filters.status) {
     filter.status = { _eq: filters.status };
   }
-  
+
   // if (filters.positionId) {
   //   filter.position = { _eq: filters.positionId };
   // }
-  
+
   // Date range for hire_date
   if (filters.startDate || filters.endDate) {
     filter.hire_date = {};
     if (filters.startDate) filter.hire_date._gte = filters.startDate;
     if (filters.endDate) filter.hire_date._lte = filters.endDate;
   }
-  
+
   return filter;
 }
 
@@ -344,14 +344,14 @@ function calculateTenureDistribution(employees: any[]) {
 
   employees.forEach((emp: any) => {
     if (!emp.hire_date) return;
-    
+
     const hireDate = new Date(emp.hire_date);
     const months = (now.getTime() - hireDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
-    
+
     const rangeIndex = tenureRanges.findIndex(
       (r) => months >= r.min && months < r.max
     );
-    
+
     if (rangeIndex >= 0) {
       counts[rangeIndex].count++;
     }
@@ -399,6 +399,17 @@ export const getAttendanceAnalytics = async (
       logsFilter.employee_id = { _eq: filters.employeeId };
     }
 
+    // Get all employees to have names
+    const employees = await directus.request(
+      readItems(EMPLOYEES_COLLECTION, {
+        fields: ['id', 'full_name', 'employee_code'],
+        limit: -1,
+      })
+    );
+    const employeeNameMap = new Map(
+      employees.map((e: any) => [e.id, e.full_name || e.employee_code || 'Nhân viên'])
+    );
+
     // Get all attendance logs
     const logs = await directus.request(
       readItems(ATTENDANCE_LOGS_COLLECTION, {
@@ -422,6 +433,8 @@ export const getAttendanceAnalytics = async (
 
     logs.forEach((log: any) => {
       const employeeId = log.employee_id;
+      if (!employeeId) return;
+
       const eventTime = new Date(log.event_time);
       const dateKey = eventTime.toISOString().split('T')[0];
 
@@ -453,7 +466,7 @@ export const getAttendanceAnalytics = async (
     // Calculate totals
     let totalWorkDays = 0;
     let totalLate = 0;
-    let totalPresent = 0;
+    let totalClockIns = 0; // Total number of clock_in events
 
     const performanceList: EmployeePerformance[] = [];
 
@@ -461,11 +474,11 @@ export const getAttendanceAnalytics = async (
       const workDays = stats.workDays.size;
       totalWorkDays += workDays;
       totalLate += stats.lateCount;
-      totalPresent += workDays; // Present = có clock_in
+      totalClockIns += stats.clockIns;
 
       performanceList.push({
         employeeId,
-        employeeName: 'Employee ' + employeeId.slice(0, 8),
+        employeeName: employeeNameMap.get(employeeId) || 'Nhân viên',
         attendanceRate: 100, // All logged are present
         lateCount: stats.lateCount,
         absentCount: 0,
@@ -486,14 +499,18 @@ export const getAttendanceAnalytics = async (
     const attendanceTrend: TimeSeriesData[] = [];
     const lateTrend: TimeSeriesData[] = [];
 
+    // Late rate = totalLate / totalClockIns * 100 (percentage of clock-ins that were late)
+    // Cap at 100% maximum
+    const calculatedLateRate = totalClockIns > 0 ? Math.min((totalLate / totalClockIns) * 100, 100) : 0;
+
     return {
       totalWorkDays,
-      totalPresent,
+      totalPresent: totalWorkDays,
       totalLate,
       totalAbsent: 0, // Need schedule data to calculate absent
       totalOnLeave: 0,
       attendanceRate: totalWorkDays > 0 ? 100 : 0, // All logged are present
-      lateRate: totalPresent > 0 ? (totalLate / totalPresent) * 100 : 0,
+      lateRate: calculatedLateRate,
       absentRate: 0,
       attendanceTrend,
       lateTrend,
@@ -513,19 +530,19 @@ export const getAttendanceAnalytics = async (
  */
 function buildMonthFilter(filters: AnalyticsFilters) {
   const filter: any = {};
-  
+
   if (filters.startDate) {
     filter.month = { _gte: filters.startDate.slice(0, 7) };
   }
-  
+
   if (filters.endDate) {
     filter.month = { ...filter.month, _lte: filters.endDate.slice(0, 7) };
   }
-  
+
   if (filters.employeeId) {
     filter.employee_id = { _eq: filters.employeeId };
   }
-  
+
   return filter;
 }
 
@@ -538,7 +555,7 @@ function getTopPerformers(stats: any[], limit: number): EmployeePerformance[] {
       const total = s.total_shifts_worked || 0;
       const absent = s.absent_count || 0;
       const late = s.late_count || 0;
-      
+
       return {
         employeeId: s.employee_id,
         employeeName: 'Employee ' + s.employee_id.slice(0, 8), // TODO: Fetch actual name
@@ -561,7 +578,7 @@ function getBottomPerformers(stats: any[], limit: number): EmployeePerformance[]
       const total = s.total_shifts_worked || 0;
       const absent = s.absent_count || 0;
       const late = s.late_count || 0;
-      
+
       return {
         employeeId: s.employee_id,
         employeeName: 'Employee ' + s.employee_id.slice(0, 8),
@@ -595,7 +612,7 @@ export const getScheduleAnalytics = async (
     const assignmentFilter: any = {
       status: { _neq: 'cancelled' }
     };
-    
+
     if (filters.startDate || filters.endDate) {
       assignmentFilter.shift_id = {
         shift_date: {}
@@ -699,7 +716,7 @@ export const getSalaryAnalytics = async (
     // 3. Calculate Stats
     let totalBaseSalary = 0;
     const salaryDistribution: any[] = []; // Ranges: <5M, 5-10M, 10-20M, >20M
-    
+
     // Initialize ranges
     const ranges = {
       '< 5M': 0,
@@ -712,18 +729,18 @@ export const getSalaryAnalytics = async (
       if (emp.scheme_id && schemeMap.has(emp.scheme_id)) {
         const scheme = schemeMap.get(emp.scheme_id);
         let estimatedMonthly = 0;
-        
+
         // Parse rate as number (có thể là string từ DB)
         const rate = parseFloat(scheme.rate) || 0;
-        
+
         if (scheme.pay_type === 'monthly') {
           estimatedMonthly = rate;
         } else if (scheme.pay_type === 'hourly') {
           // Estimate: rate * 8 hours * 22 days
           estimatedMonthly = rate * 8 * 22;
         } else if (scheme.pay_type === 'fixed_shift') {
-           // Estimate: rate * 22 shifts
-           estimatedMonthly = rate * 22;
+          // Estimate: rate * 22 shifts
+          estimatedMonthly = rate * 22;
         }
 
         totalBaseSalary += estimatedMonthly;
@@ -838,7 +855,7 @@ export const getEmployeePerformanceRanking = async (
     const total = s.total_shifts_worked || 0;
     const absent = s.absent_count || 0;
     const late = s.late_count || 0;
-    
+
     return {
       employeeId: s.employee_id,
       employeeName: 'Employee ' + s.employee_id.slice(0, 8),
@@ -976,7 +993,7 @@ export const getRecentActivities = async (limit: number = 5): Promise<RecentActi
         const empName = await getEmployeeName(payroll.employee_id);
         let action = `Tạo phiếu lương tháng ${payroll.month} cho ${empName}`;
         let actor = 'Admin';
-        
+
         if (payroll.status === 'approved') {
           action = `Duyệt phiếu lương tháng ${payroll.month} của ${empName}`;
           if (payroll.approved_by) {
@@ -985,7 +1002,7 @@ export const getRecentActivities = async (limit: number = 5): Promise<RecentActi
         } else if (payroll.status === 'sent') {
           action = `Gửi phiếu lương tháng ${payroll.month} cho ${empName}`;
         }
-        
+
         activities.push({
           id: `payroll_${payroll.id}`,
           action,
@@ -1052,9 +1069,9 @@ export const getRecentActivities = async (limit: number = 5): Promise<RecentActi
       );
       for (const log of attendanceLogs as any[]) {
         const empName = await getEmployeeName(log.employee_id);
-        const action = log.event_type === 'clock_in' ? 'Check-in' : 
-                       log.event_type === 'clock_out' ? 'Check-out' : 
-                       log.event_type;
+        const action = log.event_type === 'clock_in' ? 'Check-in' :
+          log.event_type === 'clock_out' ? 'Check-out' :
+            log.event_type;
         activities.push({
           id: `attendance_${log.id}`,
           action: `${action}`,

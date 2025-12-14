@@ -3,6 +3,7 @@ import { Shift } from "./shift.model";
 import ShiftRepository from "./shift.repository";
 import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 import ShiftTypeRepository from "../shift-types/shift-type.repository";
+import { today } from "../../utils/date.utils";
 
 export class ShiftService extends BaseService<Shift> {
   private shiftTypeRepo: ShiftTypeRepository;
@@ -18,9 +19,9 @@ export class ShiftService extends BaseService<Shift> {
       // Default: include all shift fields + shift_type relation
       // In Directus, we specify the foreign key field followed by the nested fields to expand the relation
       query.fields = [
-        '*', 
+        '*',
         'shift_type_id.id',
-        'shift_type_id.name', 
+        'shift_type_id.name',
         'shift_type_id.start_time',
         'shift_type_id.end_time',
         'shift_type_id.color',
@@ -89,13 +90,13 @@ export class ShiftService extends BaseService<Shift> {
     // Get all unique shift type IDs
     const shiftTypeIds = [...new Set(shifts.map(s => s.shift_type_id).filter(Boolean))];
     console.log(`🔍 Found ${shiftTypeIds.length} unique shift types: ${shiftTypeIds.join(', ')}`);
-    
+
     // Fetch all shift types at once
     const shiftTypes = await this.shiftTypeRepo.findAll({
       filter: { id: { _in: shiftTypeIds } },
     });
     console.log(`📦 Loaded ${shiftTypes.length} shift type definitions`);
-    
+
     // Create a map for quick lookup
     const shiftTypeMap = new Map(shiftTypes.map((st: any) => [st.id, st]));
 
@@ -103,11 +104,11 @@ export class ShiftService extends BaseService<Shift> {
     const processedShifts = shifts.map((shift, index) => {
       const shiftDate = shift.shift_date || ''; // YYYY-MM-DD
       const shiftType = shiftTypeMap.get(shift.shift_type_id);
-      
+
       // Get time from shift or fallback to shift_type
       const startTime = shift.start_at || shiftType?.start_time;
       const endTime = shift.end_at || shiftType?.end_time;
-      
+
       // Convert HH:mm:ss to full datetime (YYYY-MM-DD HH:mm:ss)
       const formatDatetime = (date: string, time: string | undefined | null): string | null => {
         if (!time || !date) return null;
@@ -116,7 +117,7 @@ export class ShiftService extends BaseService<Shift> {
         // Otherwise, combine date + time
         return `${date} ${time}`;
       };
-      
+
       return {
         schedule_id: shift.schedule_id,
         shift_type_id: shift.shift_type_id,
@@ -131,13 +132,13 @@ export class ShiftService extends BaseService<Shift> {
     console.log(`🔄 Processed ${processedShifts.length} shifts with times from shift_types`);
     console.log(`📝 First processed shift:`, JSON.stringify(processedShifts[0], null, 2));
     console.log(`📝 Last processed shift:`, JSON.stringify(processedShifts[processedShifts.length - 1], null, 2));
-    
+
     console.log(`🚀 Calling repository.createMany with ${processedShifts.length} shifts...`);
     const created = await (this.repo as ShiftRepository).createMany(processedShifts);
     console.log(`✅ Repository createMany returned ${created.length} shifts`);
     console.log(`📋 Created shift dates:`, created.map((s: any) => s.shift_date));
     console.log(`📋 Created shift IDs:`, created.map((s: any) => s.id));
-    
+
     return created;
   }
 
@@ -148,13 +149,13 @@ export class ShiftService extends BaseService<Shift> {
    */
   async getTodayShifts() {
     try {
-      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      console.log(`📅 [getTodayShifts] Fetching shifts for date: ${today}`);
-      
+      const todayDate = today(); // YYYY-MM-DD
+      console.log(`📅 [getTodayShifts] Fetching shifts for date: ${todayDate}`);
+
       // Fetch all shifts for today
       const shifts = await this.repo.findAll({
         filter: {
-          shift_date: { _eq: today }
+          shift_date: { _eq: todayDate }
         },
         fields: [
           '*',

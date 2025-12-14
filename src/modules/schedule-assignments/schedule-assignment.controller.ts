@@ -153,7 +153,9 @@ export const autoSchedule = async (
         ? "Mô phỏng xếp lịch tự động thành công"
         : "Xếp lịch tự động thành công"
     );
-  } catch (err) {
+  } catch (err: any) {
+    console.error("❌ [Auto-Schedule] Error:", err?.message || err);
+    console.error("❌ [Auto-Schedule] Stack:", err?.stack);
     next(err);
   }
 };

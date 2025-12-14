@@ -3,6 +3,7 @@ import { Notification, NOTIFICATION_STATUS, RECIPIENT_TYPE } from "./notificatio
 import NotificationRepository from "./notification.repository";
 import NovuService from "./novu.service";
 import { randomUUID } from "crypto";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 /**
  * Notification Service - Business logic for notifications
@@ -23,7 +24,7 @@ export class NotificationService extends BaseService<Notification> {
   ): Promise<Notification> {
     // Normalize recipient_type to uppercase
     const normalizedRecipientType = data.recipient_type?.toUpperCase() as Notification["recipient_type"];
-    
+
     // Validate recipient type
     if (!Object.values(RECIPIENT_TYPE).includes(normalizedRecipientType)) {
       throw new HttpError(400, "Invalid recipient type. Must be 'ALL' or 'SPECIFIC'");
@@ -62,11 +63,14 @@ export class NotificationService extends BaseService<Notification> {
     }
 
     try {
+      // Default URL if not provided (Novu requires non-empty actionUrl)
+      const defaultActionUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
       // Determine recipients and send
       const payload = {
         title: notification.title,
         message: notification.message,
-        actionUrl: notification.action_url,
+        actionUrl: notification.action_url || notification.link || `${defaultActionUrl}`,
       };
 
       if (notification.recipient_type === RECIPIENT_TYPE.ALL) {
@@ -96,7 +100,7 @@ export class NotificationService extends BaseService<Notification> {
       // Update status
       return await this.repo.update(id, {
         status: NOTIFICATION_STATUS.SENT,
-        sent_at: new Date().toISOString(),
+        sent_at: now().format(DATE_FORMATS.DATETIME),
       });
     } catch (error: any) {
       // Mark as failed

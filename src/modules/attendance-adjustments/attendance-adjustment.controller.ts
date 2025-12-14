@@ -12,7 +12,14 @@ export const listAttendanceAdjustments = async (
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    // Join with attendance_shift to get original clock times, and requested_by for employee info
+    const data = await service.list({
+      fields: [
+        "*",
+        "attendance_shift_id.*",
+        "requested_by.*",
+      ],
+    });
     return sendSuccess(
       res,
       data.map(toAttendanceAdjustmentResponseDto),
@@ -23,6 +30,7 @@ export const listAttendanceAdjustments = async (
     next(err);
   }
 };
+
 
 export const getAttendanceAdjustment = async (
   req: Request,
