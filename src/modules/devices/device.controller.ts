@@ -3,19 +3,25 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import DeviceService from "./device.service";
 import { toDeviceResponseDto } from "./device.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new DeviceService();
 
 export const listDevices = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
+    
     return sendSuccess(
       res,
-      data.map(toDeviceResponseDto),
+      {
+        items: result.data.map(toDeviceResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách thiết bị thành công"
     );

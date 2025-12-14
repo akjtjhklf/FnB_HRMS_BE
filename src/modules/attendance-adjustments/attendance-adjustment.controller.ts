@@ -12,7 +12,14 @@ export const listAttendanceAdjustments = async (
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    // Join with attendance_shift to get original clock times, and requested_by for employee info
+    const data = await service.list({
+      fields: [
+        "*",
+        "attendance_shift_id.*",
+        "requested_by.*",
+      ],
+    });
     return sendSuccess(
       res,
       data.map(toAttendanceAdjustmentResponseDto),
@@ -23,6 +30,7 @@ export const listAttendanceAdjustments = async (
     next(err);
   }
 };
+
 
 export const getAttendanceAdjustment = async (
   req: Request,
@@ -91,6 +99,46 @@ export const deleteAttendanceAdjustment = async (
     const id = String(req.params.id);
     await service.remove(id);
     return sendSuccess(res, null, 200, "Xoá điều chỉnh chấm công thành công");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const approveAttendanceAdjustment = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const managerId = (req as any).user?.id;
+    const data = await service.approve(id, managerId);
+    return sendSuccess(
+      res,
+      toAttendanceAdjustmentResponseDto(data),
+      200,
+      "Duyệt yêu cầu điều chỉnh thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const rejectAttendanceAdjustment = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const managerId = (req as any).user?.id;
+    const data = await service.reject(id, managerId);
+    return sendSuccess(
+      res,
+      toAttendanceAdjustmentResponseDto(data),
+      200,
+      "Từ chối yêu cầu điều chỉnh thành công"
+    );
   } catch (err) {
     next(err);
   }

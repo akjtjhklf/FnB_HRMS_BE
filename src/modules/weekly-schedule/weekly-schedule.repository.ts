@@ -8,8 +8,8 @@ import {
  * Repository quản lý Weekly Schedules
  */
 export class WeeklyScheduleRepository extends DirectusRepository<WeeklySchedule> {
-  constructor() {
-    super(WEEKLY_SCHEDULE_COLLECTION);
+  constructor(client?: any) {
+    super(WEEKLY_SCHEDULE_COLLECTION, client);
   }
 
   // Custom methods nếu cần sau này

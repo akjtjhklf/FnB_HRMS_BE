@@ -5,8 +5,14 @@ export const createAttendanceAdjustmentSchema = z.object({
   attendance_shift_id: z.uuid(),
   requested_by: z.uuid().nullable().optional(),
   requested_at: z.string().nullable().optional(),
-  old_value: z.record(z.any(), z.any()).nullable().optional(),
-  proposed_value: z.record(z.any(), z.any()).nullable().optional(),
+  old_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable().optional(),
+  proposed_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable().optional(),
   approved_by: z.uuid().nullable().optional(),
   approved_at: z.string().nullable().optional(),
   status: z.enum(["pending", "approved", "rejected"]).default("pending"),
@@ -16,14 +22,21 @@ export const createAttendanceAdjustmentSchema = z.object({
 export const updateAttendanceAdjustmentSchema =
   createAttendanceAdjustmentSchema.partial();
 
+// Response schema allows joined objects (not just UUIDs)
 export const attendanceAdjustmentResponseSchema = z.object({
   id: z.uuid(),
-  attendance_shift_id: z.uuid(),
-  requested_by: z.uuid().nullable(),
+  attendance_shift_id: z.any(), // Can be UUID string or joined object
+  requested_by: z.any(), // Can be UUID string or joined object
   requested_at: z.string().nullable(),
-  old_value: z.record(z.any(), z.any()).nullable(),
-  proposed_value: z.record(z.any(), z.any()).nullable(),
-  approved_by: z.uuid().nullable(),
+  old_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable(),
+  proposed_value: z.object({
+    clock_in: z.string().nullable().optional(),
+    clock_out: z.string().nullable().optional(),
+  }).nullable(),
+  approved_by: z.any().nullable(),
   approved_at: z.string().nullable(),
   status: z.enum(["pending", "approved", "rejected"]),
   reason: z.string().nullable(),
@@ -42,9 +55,10 @@ export type AttendanceAdjustmentResponseDto = z.infer<
 >;
 
 export const toAttendanceAdjustmentResponseDto = (
-  entity: AttendanceAdjustment
+  entity: AttendanceAdjustment & { attendance_shift_id?: any; requested_by?: any }
 ): AttendanceAdjustmentResponseDto => ({
   id: entity.id,
+  // Preserve joined object if it's an object, otherwise use the ID
   attendance_shift_id: entity.attendance_shift_id,
   requested_by: entity.requested_by ?? null,
   requested_at: entity.requested_at ?? null,
@@ -57,3 +71,4 @@ export const toAttendanceAdjustmentResponseDto = (
   created_at: entity.created_at ?? null,
   updated_at: entity.updated_at ?? null,
 });
+

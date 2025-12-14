@@ -3,19 +3,24 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import MonthlyEmployeeStatService from "./monthly-employee-stat.service";
 import { toMonthlyEmployeeStatResponseDto } from "./monthly-employee-stat.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new MonthlyEmployeeStatService();
 
 export const listMonthlyEmployeeStats = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toMonthlyEmployeeStatResponseDto),
+      {
+        items: data.data.map(toMonthlyEmployeeStatResponseDto),
+        ...data.meta,
+      },
       200,
       "Lấy danh sách thống kê nhân viên thành công"
     );

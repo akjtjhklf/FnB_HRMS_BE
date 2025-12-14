@@ -2,11 +2,16 @@ import { BaseService, HttpError } from "../../core/base";
 import { Device } from "./device.model";
 import DeviceRepository from "./device.repository";
 import { randomUUID } from "crypto";
+import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 
 export class DeviceService extends BaseService<Device> {
   declare repo: DeviceRepository;
   constructor(repo = new DeviceRepository()) {
     super(repo);
+  }
+
+  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<Device>> {
+    return await this.repo.findAllPaginated(query);
   }
 
   async list(query?: Record<string, unknown>) {
@@ -43,13 +48,7 @@ export class DeviceService extends BaseService<Device> {
     return await this.repo.update(id, data);
   }
 
-  async remove(id: string) {
-    const device = await this.repo.findById(id);
-    if (!device)
-      throw new HttpError(404, "Không tìm thấy thiết bị", "DEVICE_NOT_FOUND");
-
-    await this.repo.delete(id);
-  }
+  // remove() method được kế thừa từ BaseService với cascade delete tự động
 }
 
 export default DeviceService;

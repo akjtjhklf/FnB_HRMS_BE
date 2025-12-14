@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listRFIDCards);
 router.get("/:id", getRFIDCard);
 router.post("/", validateBody(createRFIDCardSchema), createRFIDCard);
-router.put("/:id", validateBody(updateRFIDCardSchema), updateRFIDCard);
+router.patch("/:id", validateBody(updateRFIDCardSchema), updateRFIDCard);
 router.delete("/:id", deleteRFIDCard);
 
 export default router;

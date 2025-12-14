@@ -12,12 +12,16 @@ import {
   updateSalarySchemeSchema,
 } from "./salary-scheme.dto";
 
+import { requireAuth } from "../../middlewares/auth.middleware";
+
 const router = Router();
+
+router.use(requireAuth());
 
 router.get("/", listSalarySchemes);
 router.get("/:id", getSalaryScheme);
 router.post("/", validateBody(createSalarySchemeSchema), createSalaryScheme);
-router.put("/:id", validateBody(updateSalarySchemeSchema), updateSalaryScheme);
+router.patch("/:id", validateBody(updateSalarySchemeSchema), updateSalaryScheme);
 router.delete("/:id", deleteSalaryScheme);
 
 export default router;

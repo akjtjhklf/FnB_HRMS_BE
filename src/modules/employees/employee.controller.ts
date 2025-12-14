@@ -3,22 +3,28 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import EmployeeService from "./employee.service";
 import { toEmployeeResponseDto } from "./employee.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new EmployeeService();
 
 /**
- * Lấy danh sách nhân viên
+ * Lấy danh sách nhân viên với pagination, filter, sort, search
  */
 export const listEmployees = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
+    
     return sendSuccess(
       res,
-      data.map(toEmployeeResponseDto),
+      {
+        items: result.data.map(toEmployeeResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách nhân viên thành công"
     );
@@ -65,6 +71,48 @@ export const createEmployee = async (
       toEmployeeResponseDto(data),
       201,
       "Tạo nhân viên thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+/**
+ * Tạo nhân viên đầy đủ (User + Access + Employee + RFID)
+ */
+export const createFullEmployee = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const data = await service.createFull(req.body);
+    return sendSuccess(
+      res,
+      toEmployeeResponseDto(data),
+      201,
+      "Tạo nhân viên đầy đủ thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Cập nhật nhân viên đầy đủ (User + Access + Employee + RFID)
+ */
+export const updateFullEmployee = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const id = String(req.params.id);
+    const data = await service.updateFull(id, req.body);
+    return sendSuccess(
+      res,
+      toEmployeeResponseDto(data),
+      200,
+      "Cập nhật thông tin nhân viên đầy đủ thành công"
     );
   } catch (err) {
     next(err);

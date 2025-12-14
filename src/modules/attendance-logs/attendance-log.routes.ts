@@ -17,7 +17,7 @@ const router = Router();
 router.get("/", listAttendanceLogs);
 router.get("/:id", getAttendanceLog);
 router.post("/", validateBody(createAttendanceLogSchema), createAttendanceLog);
-router.put(
+router.patch(
   "/:id",
   validateBody(updateAttendanceLogSchema),
   updateAttendanceLog

@@ -2,6 +2,8 @@ import { randomUUID } from "crypto";
 import { BaseService, HttpError } from "../../core/base";
 import { RFIDCard } from "./rfid-card.model";
 import RFIDCardRepository from "./rfid-card.repository";
+import { PaginatedResponse, PaginationQueryDto } from "../../core/dto/pagination.dto";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 export class RFIDCardService extends BaseService<RFIDCard> {
   declare repo: RFIDCardRepository;
@@ -13,7 +15,13 @@ export class RFIDCardService extends BaseService<RFIDCard> {
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
   }
-
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<RFIDCard>> {
+    return await (
+      this.repo as RFIDCardRepository
+    ).findAllPaginated(query);
+  }
   async get(id: string) {
     const card = await this.repo.findById(id);
     if (!card)
@@ -27,16 +35,17 @@ export class RFIDCardService extends BaseService<RFIDCard> {
     if (existing)
       throw new HttpError(409, "Card UID đã tồn tại", "CARD_UID_CONFLICT");
 
+    const nowStr = now().format(DATE_FORMATS.DATETIME);
     const newCard: RFIDCard = {
       id: randomUUID(),
       employee_id: data.employee_id ?? null,
       card_uid: data.card_uid!,
-      issued_at: data.issued_at ?? new Date().toISOString(),
+      issued_at: data.issued_at ?? nowStr,
       revoked_at: data.revoked_at ?? null,
       status: data.status ?? "active",
       notes: data.notes ?? null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: nowStr,
+      updated_at: nowStr,
     };
 
     return await this.repo.create(newCard);
@@ -56,17 +65,11 @@ export class RFIDCardService extends BaseService<RFIDCard> {
 
     return await this.repo.update(id, {
       ...data,
-      updated_at: new Date().toISOString(),
+      updated_at: now().format(DATE_FORMATS.DATETIME),
     });
   }
 
-  async remove(id: string) {
-    const existing = await this.repo.findById(id);
-    if (!existing)
-      throw new HttpError(404, "Không tìm thấy thẻ RFID", "CARD_NOT_FOUND");
-
-    await this.repo.delete(id);
-  }
+  // remove() method được kế thừa từ BaseService với cascade delete tự động
 }
 
 export default RFIDCardService;

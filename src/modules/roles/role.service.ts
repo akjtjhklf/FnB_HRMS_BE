@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { Role } from "./role.model";
 import RoleRepository from "./role.repository";
 
@@ -13,7 +17,11 @@ export class RoleService extends BaseService<Role> {
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
   }
-
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<Role>> {
+    return await (this.repo as RoleRepository).findAllPaginated(query);
+  }
   async get(id: number | string) {
     const role = await this.repo.findById(id);
     if (!role)

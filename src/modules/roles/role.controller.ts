@@ -3,6 +3,8 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import RoleService from "./role.service";
 import { toRoleResponseDto } from "./role.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
+import DirectusAccessService from "../../core/services/directus-access.service";
 
 const service = new RoleService();
 
@@ -10,15 +12,16 @@ const service = new RoleService();
  * Lấy danh sách role
  */
 export const listRoles = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toRoleResponseDto),
+      { items: data.data.map(toRoleResponseDto), ...data.meta },
       200,
       "Lấy danh sách role thành công"
     );
@@ -105,6 +108,84 @@ export const deleteRole = async (
     const id = String(req.params.id);
     await service.remove(id);
     return sendSuccess(res, null, 200, "Xoá role thành công");
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Lấy danh sách policies của role
+ */
+export const getRolePolicies = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const roleId = String(req.params.id);
+    const policies = await DirectusAccessService.getRolePolicies(roleId);
+    return sendSuccess(
+      res,
+      policies,
+      200,
+      "Lấy policies của role thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Gán policies cho role
+ * Body: { policyIds: string[] }
+ */
+export const assignPoliciesToRole = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const roleId = String(req.params.id);
+    const { policyIds } = req.body;
+
+    if (!Array.isArray(policyIds)) {
+      throw new HttpError(400, "policyIds phải là một mảng");
+    }
+
+    // Replace all policies (remove old + add new)
+    await DirectusAccessService.replaceRolePolicies(roleId, policyIds);
+
+    return sendSuccess(
+      res,
+      { roleId, policyIds },
+      200,
+      "Gán policies cho role thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Xoá policy khỏi role
+ */
+export const removeRolePolicy = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const roleId = String(req.params.id);
+    const policyId = String(req.params.policyId);
+
+    await DirectusAccessService.removeRolePolicy(roleId, policyId);
+
+    return sendSuccess(
+      res,
+      { roleId, policyId },
+      200,
+      "Xoá policy khỏi role thành công"
+    );
   } catch (err) {
     next(err);
   }

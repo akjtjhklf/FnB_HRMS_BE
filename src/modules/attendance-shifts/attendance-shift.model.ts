@@ -10,6 +10,7 @@ export interface AttendanceShift {
   early_leave_minutes?: number | null;
   status: "present" | "absent" | "partial";
   manual_adjusted?: boolean;
+  notes?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }

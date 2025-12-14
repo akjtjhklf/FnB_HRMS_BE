@@ -1,0 +1,1530 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HRMS Backend API",
+    "description": "Human Resource Management System - Complete REST API for employee management, scheduling, attendance tracking, and auto-scheduling",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Support",
+      "email": "support@hrms.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000/api",
+      "description": "Local dev server (this app)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints"
+    },
+    {
+      "name": "Employees",
+      "description": "Employee management"
+    },
+    {
+      "name": "Schedule Assignments",
+      "description": "Schedule management and auto-scheduling"
+    },
+    {
+      "name": "Employee Availability",
+      "description": "Employee availability and preferences"
+    },
+    {
+      "name": "Shifts",
+      "description": "Shift management"
+    },
+    {
+      "name": "Attendance Logs",
+      "description": "Attendance tracking"
+    },
+    {
+      "name": "Devices",
+      "description": "Device and RFID management"
+    },
+    {
+      "name": "Users",
+      "description": "User management"
+    },
+    {
+      "name": "Roles & Permissions",
+      "description": "Role-based access control"
+    },
+    {
+      "name": "Positions",
+      "description": "Job positions"
+    },
+    {
+      "name": "Contracts",
+      "description": "Employee contracts"
+    },
+    {
+      "name": "Salary",
+      "description": "Salary schemes and requests"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login to system",
+        "description": "Authenticate user and receive access token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "email": "admin@hrms.com",
+                "password": "password123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Logout",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh access token",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "Token refreshed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/employees": {
+      "get": {
+        "tags": ["Employees"],
+        "summary": "List all employees",
+        "description": "Get paginated list of employees with optional filters",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {"type": "integer", "default": 50}
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {"type": "integer", "default": 0}
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["active", "inactive", "on_leave"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of employees",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/Employee"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Employees"],
+        "summary": "Create new employee",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEmployeeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Employee created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {"$ref": "#/components/schemas/Employee"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/employees/{id}": {
+      "get": {
+        "tags": ["Employees"],
+        "summary": "Get employee by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Employee details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {"$ref": "#/components/schemas/Employee"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Employees"],
+        "summary": "Update employee",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEmployeeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Employee updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {"$ref": "#/components/schemas/Employee"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Employees"],
+        "summary": "Delete employee",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Employee deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/schedule-assignments/auto-schedule": {
+      "post": {
+        "tags": ["Schedule Assignments"],
+        "summary": "🤖 Auto-schedule employees to shifts",
+        "description": "Automatically assign employees to shifts based on availability, priorities, position preferences, workload balance, and constraints (max shifts/week, rest hours). Supports dry-run mode for testing without persisting.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoScheduleRequest"
+              },
+              "example": {
+                "scheduleId": "550e8400-e29b-41d4-a716-446655440000",
+                "options": {
+                  "dryRun": true,
+                  "overwriteExisting": false,
+                  "weights": {
+                    "priority": 1.0,
+                    "workloadBalance": 0.8,
+                    "positionPreference": 1.2,
+                    "fairness": 0.5
+                  },
+                  "maxShiftsPerWeek": 5,
+                  "minRestHours": 8
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Auto-schedule completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoScheduleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        }
+      }
+    },
+    "/schedule-assignments/schedule/{scheduleId}/stats": {
+      "get": {
+        "tags": ["Schedule Assignments"],
+        "summary": "Get schedule statistics",
+        "description": "Get stats for a schedule: total assignments, unfilled shifts, per-employee assignments",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Schedule stats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {
+                      "$ref": "#/components/schemas/ScheduleStats"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/schedule-assignments": {
+      "get": {
+        "tags": ["Schedule Assignments"],
+        "summary": "List schedule assignments",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "query",
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "employeeId",
+            "in": "query",
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of assignments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/ScheduleAssignment"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Schedule Assignments"],
+        "summary": "Create schedule assignment",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScheduleAssignmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Assignment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {"$ref": "#/components/schemas/ScheduleAssignment"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/schedule-assignments/{id}": {
+      "get": {
+        "tags": ["Schedule Assignments"],
+        "summary": "Get assignment by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignment details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {"$ref": "#/components/schemas/ScheduleAssignment"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Schedule Assignments"],
+        "summary": "Update assignment",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScheduleAssignmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Assignment updated"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Schedule Assignments"],
+        "summary": "Delete assignment",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assignment deleted"
+          }
+        }
+      }
+    },
+    "/employee-availability": {
+      "get": {
+        "tags": ["Employee Availability"],
+        "summary": "List employee availability",
+        "parameters": [
+          {
+            "name": "employeeId",
+            "in": "query",
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "weeklyScheduleId",
+            "in": "query",
+            "schema": {"type": "string", "format": "uuid"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of availability records"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Employee Availability"],
+        "summary": "Create availability record",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAvailabilityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Availability created"
+          }
+        }
+      }
+    },
+    "/shifts": {
+      "get": {
+        "tags": ["Shifts"],
+        "summary": "List all shifts",
+        "parameters": [
+          {
+            "name": "weeklyScheduleId",
+            "in": "query",
+            "schema": {"type": "string", "format": "uuid"}
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "schema": {"type": "string", "format": "date"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of shifts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/Shift"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Shifts"],
+        "summary": "Create shift",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShiftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Shift created"
+          }
+        }
+      }
+    },
+    "/attendance-logs": {
+      "get": {
+        "tags": ["Attendance Logs"],
+        "summary": "List attendance logs",
+        "responses": {
+          "200": {
+            "description": "List of attendance logs"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Attendance Logs"],
+        "summary": "Create attendance log",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAttendanceLogRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Log created"
+          }
+        }
+      }
+    },
+    "/devices": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "List devices",
+        "responses": {
+          "200": {
+            "description": "List of devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {"type": "boolean", "example": true},
+                    "data": {
+                      "type": "array",
+                      "items": {"$ref": "#/components/schemas/Device"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Register new device",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeviceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Device registered"
+          }
+        }
+      }
+    },
+    "/device-events": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Webhook for device RFID events",
+        "description": "Receive RFID tap events from devices",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAttendanceLogRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Event received"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "List users",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "List of users"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "summary": "Create user",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "201": {
+            "description": "User created"
+          }
+        }
+      }
+    },
+    "/positions": {
+      "get": {
+        "tags": ["Positions"],
+        "summary": "List positions",
+        "responses": {
+          "200": {
+            "description": "List of positions"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Positions"],
+        "summary": "Create position",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "201": {
+            "description": "Position created"
+          }
+        }
+      }
+    },
+    "/roles": {
+      "get": {
+        "tags": ["Roles & Permissions"],
+        "summary": "List roles",
+        "responses": {
+          "200": {
+            "description": "List of roles"
+          }
+        }
+      }
+    },
+    "/permissions": {
+      "get": {
+        "tags": ["Roles & Permissions"],
+        "summary": "List permissions",
+        "responses": {
+          "200": {
+            "description": "List of permissions"
+          }
+        }
+      }
+    },
+    "/contracts": {
+      "get": {
+        "tags": ["Contracts"],
+        "summary": "List contracts",
+        "responses": {
+          "200": {
+            "description": "List of contracts"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Contracts"],
+        "summary": "Create contract",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "201": {
+            "description": "Contract created"
+          }
+        }
+      }
+    },
+    "/salary-schemes": {
+      "get": {
+        "tags": ["Salary"],
+        "summary": "List salary schemes",
+        "responses": {
+          "200": {
+            "description": "List of salary schemes"
+          }
+        }
+      }
+    },
+    "/salary-requests": {
+      "get": {
+        "tags": ["Salary"],
+        "summary": "List salary requests",
+        "responses": {
+          "200": {
+            "description": "List of salary requests"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Salary"],
+        "summary": "Create salary request",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "201": {
+            "description": "Request created"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "example": "admin@hrms.com"
+          },
+          "password": {
+            "type": "string",
+            "example": "password123"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "token": {
+                "type": "string",
+                "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              },
+              "refresh_token": {
+                "type": "string",
+                "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              }
+            }
+          }
+        }
+      },
+      "Employee": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "first_name": {
+            "type": "string",
+            "example": "Nguyen"
+          },
+          "last_name": {
+            "type": "string",
+            "example": "Van A"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date"
+          },
+          "hire_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "on_leave"],
+            "example": "active"
+          },
+          "position_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "max_shifts_per_week": {
+            "type": "integer",
+            "example": 5
+          },
+          "max_hours_per_week": {
+            "type": "number",
+            "example": 40
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5
+          }
+        }
+      },
+      "CreateEmployeeRequest": {
+        "type": "object",
+        "required": ["first_name", "last_name", "email", "hire_date"],
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date"
+          },
+          "hire_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "on_leave"],
+            "default": "active"
+          },
+          "position_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "max_shifts_per_week": {
+            "type": "integer",
+            "default": 5
+          },
+          "max_hours_per_week": {
+            "type": "number",
+            "default": 40
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 5
+          }
+        }
+      },
+      "UpdateEmployeeRequest": {
+        "type": "object",
+        "properties": {
+          "first_name": {"type": "string"},
+          "last_name": {"type": "string"},
+          "email": {"type": "string", "format": "email"},
+          "phone": {"type": "string"},
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "on_leave"]
+          },
+          "max_shifts_per_week": {"type": "integer"},
+          "max_hours_per_week": {"type": "number"},
+          "priority": {"type": "integer", "minimum": 1, "maximum": 10}
+        }
+      },
+      "AutoScheduleRequest": {
+        "type": "object",
+        "required": ["scheduleId"],
+        "properties": {
+          "scheduleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of the weekly schedule to auto-assign"
+          },
+          "options": {
+            "type": "object",
+            "properties": {
+              "dryRun": {
+                "type": "boolean",
+                "default": false,
+                "description": "If true, only simulate assignments without persisting to DB"
+              },
+              "overwriteExisting": {
+                "type": "boolean",
+                "default": false,
+                "description": "If true, replace existing auto assignments; if false, skip shifts with manual assignments"
+              },
+              "weights": {
+                "type": "object",
+                "description": "Scoring weights for the greedy algorithm",
+                "properties": {
+                  "priority": {
+                    "type": "number",
+                    "default": 1.0,
+                    "description": "Weight for employee/shift priority"
+                  },
+                  "workloadBalance": {
+                    "type": "number",
+                    "default": 0.8,
+                    "description": "Weight for balancing workload (prefer employees with fewer assignments)"
+                  },
+                  "positionPreference": {
+                    "type": "number",
+                    "default": 1.2,
+                    "description": "Weight for position preference match (higher = prefer top preferences)"
+                  },
+                  "fairness": {
+                    "type": "number",
+                    "default": 0.5,
+                    "description": "Weight for fairness bonus (spread work evenly)"
+                  }
+                }
+              },
+              "maxShiftsPerWeek": {
+                "type": "integer",
+                "default": 5,
+                "description": "Max shifts per employee per week (hard constraint)"
+              },
+              "minRestHours": {
+                "type": "number",
+                "default": 8,
+                "description": "Minimum rest hours between shifts for same employee (hard constraint)"
+              }
+            }
+          }
+        }
+      },
+      "AutoScheduleResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "assignments": {
+                "type": "array",
+                "description": "List of generated assignments (dry-run or persisted)",
+                "items": {
+                  "$ref": "#/components/schemas/ScheduleAssignment"
+                }
+              },
+              "stats": {
+                "$ref": "#/components/schemas/ScheduleStats"
+              },
+              "validation": {
+                "type": "object",
+                "properties": {
+                  "valid": {"type": "boolean"},
+                  "errors": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  },
+                  "warnings": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ScheduleStats": {
+        "type": "object",
+        "properties": {
+          "totalShifts": {
+            "type": "integer",
+            "example": 50
+          },
+          "assignedShifts": {
+            "type": "integer",
+            "example": 48
+          },
+          "unfilledShifts": {
+            "type": "integer",
+            "example": 2
+          },
+          "assignmentsPerEmployee": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "example": {
+              "employee-uuid-1": 5,
+              "employee-uuid-2": 4
+            }
+          },
+          "totalHoursAssigned": {
+            "type": "number",
+            "example": 384
+          }
+        }
+      },
+      "ScheduleAssignment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schedule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shift_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["manual", "auto"],
+            "example": "auto",
+            "description": "Assignment source: manual (created by user) or auto (created by scheduler)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "confirmed", "cancelled"],
+            "example": "pending"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateScheduleAssignmentRequest": {
+        "type": "object",
+        "required": ["schedule_id", "shift_id", "employee_id", "position_id"],
+        "properties": {
+          "schedule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shift_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "position_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["manual", "auto"],
+            "default": "manual"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "confirmed", "cancelled"],
+            "default": "pending"
+          }
+        }
+      },
+      "UpdateScheduleAssignmentRequest": {
+        "type": "object",
+        "properties": {
+          "employee_id": {"type": "string", "format": "uuid"},
+          "position_id": {"type": "string", "format": "uuid"},
+          "status": {
+            "type": "string",
+            "enum": ["pending", "confirmed", "cancelled"]
+          }
+        }
+      },
+      "CreateAvailabilityRequest": {
+        "type": "object",
+        "required": ["employee_id", "weekly_schedule_id", "date", "start_time", "end_time"],
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "weekly_schedule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "start_time": {
+            "type": "string",
+            "example": "09:00"
+          },
+          "end_time": {
+            "type": "string",
+            "example": "17:00"
+          },
+          "max_shifts": {
+            "type": "integer",
+            "default": 1
+          }
+        }
+      },
+      "Shift": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "weekly_schedule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shift_type_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "start_time": {
+            "type": "string",
+            "example": "09:00"
+          },
+          "end_time": {
+            "type": "string",
+            "example": "17:00"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        }
+      },
+      "CreateShiftRequest": {
+        "type": "object",
+        "required": ["weekly_schedule_id", "shift_type_id", "date", "start_time", "end_time"],
+        "properties": {
+          "weekly_schedule_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "shift_type_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "start_time": {
+            "type": "string"
+          },
+          "end_time": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "integer",
+            "default": 5
+          }
+        }
+      },
+      "CreateAttendanceLogRequest": {
+        "type": "object",
+        "required": ["card_uid", "event_time"],
+        "properties": {
+          "card_uid": {
+            "type": "string",
+            "example": "A1B2C3D4"
+          },
+          "rfid_card_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "device_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "event_type": {
+            "type": "string",
+            "enum": ["tap", "clock_in", "clock_out"],
+            "default": "tap"
+          },
+          "event_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "raw_payload": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "Main Entrance Reader"
+          },
+          "device_type": {
+            "type": "string",
+            "enum": ["rfid_reader", "fingerprint", "face_recognition"]
+          },
+          "location": {
+            "type": "string",
+            "example": "Building A - Floor 1"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "maintenance"]
+          },
+          "api_key": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateDeviceRequest": {
+        "type": "object",
+        "required": ["name", "device_type"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "device_type": {
+            "type": "string",
+            "enum": ["rfid_reader", "fingerprint", "face_recognition"]
+          },
+          "location": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "maintenance"],
+            "default": "active"
+          }
+        }
+      },
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": true
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request - validation failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "message": "Dữ liệu gửi lên không hợp lệ",
+                "code": "VALIDATION_ERROR",
+                "details": [
+                  {
+                    "path": "email",
+                    "message": "Invalid email"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Unauthorized - invalid credentials",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "message": "Invalid credentials",
+                "code": "UNAUTHORIZED"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "error": {
+                "message": "Không tìm thấy bản ghi",
+                "code": "NOT_FOUND"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

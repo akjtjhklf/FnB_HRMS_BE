@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listShiftTypes);
 router.get("/:id", getShiftType);
 router.post("/", validateBody(createShiftTypeSchema), createShiftType);
-router.put("/:id", validateBody(updateShiftTypeSchema), updateShiftType);
+router.patch("/:id", validateBody(updateShiftTypeSchema), updateShiftType);
 router.delete("/:id", deleteShiftType);
 
 export default router;

@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import SalaryRequestService from "./salary-request.service";
 import { toSalaryRequestResponseDto } from "./salary-request.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new SalaryRequestService();
 
@@ -10,15 +11,16 @@ const service = new SalaryRequestService();
  * Lấy danh sách yêu cầu tăng/điều chỉnh lương
  */
 export const listSalaryRequests = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toSalaryRequestResponseDto),
+      { items: data.data.map(toSalaryRequestResponseDto), ...data.meta },
       200,
       "Lấy danh sách yêu cầu lương thành công"
     );
@@ -59,7 +61,8 @@ export const createSalaryRequest = async (
   next: NextFunction
 ) => {
   try {
-    const data = await service.create(req.body);
+    const currentUser = (req as any).user;
+    const data = await service.create(req.body, currentUser);
     return sendSuccess(
       res,
       toSalaryRequestResponseDto(data),
@@ -105,6 +108,44 @@ export const deleteSalaryRequest = async (
     const id = String(req.params.id);
     await service.remove(id);
     return sendSuccess(res, null, 200, "Xoá yêu cầu lương thành công");
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const approveSalaryRequest = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { approved_by, manager_note } = req.body;
+    const data = await service.approve(req.params.id, approved_by, manager_note);
+    return sendSuccess(
+      res,
+      toSalaryRequestResponseDto(data),
+      200,
+      "Duyệt yêu cầu thành công"
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const rejectSalaryRequest = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    const { rejected_by, manager_note } = req.body;
+    const data = await service.reject(req.params.id, rejected_by, manager_note);
+    return sendSuccess(
+      res,
+      toSalaryRequestResponseDto(data),
+      200,
+      "Từ chối yêu cầu thành công"
+    );
   } catch (err) {
     next(err);
   }

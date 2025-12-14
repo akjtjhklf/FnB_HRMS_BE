@@ -1,0 +1,1 @@
+// This module does not require a model as it uses the Employee model for queries.

@@ -3,19 +3,25 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import DeductionService from "./deduction.service";
 import { toDeductionResponseDto } from "./deduction.dto";
 import { HttpError } from "../../core/base";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new DeductionService();
 
 export const listDeductions = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const data = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toDeductionResponseDto),
+      {
+        items: data.data.map(toDeductionResponseDto),
+
+        ...data.meta,
+      },
       200,
       "Lấy danh sách deductions thành công"
     );

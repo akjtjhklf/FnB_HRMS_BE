@@ -5,6 +5,8 @@ import { SalaryScheme, SALARY_SCHEMES_COLLECTION } from "./salary-scheme.model";
  * Repository chế độ lương — kết nối tới Directus `salary_schemes`
  */
 export class SalarySchemeRepository extends DirectusRepository<SalaryScheme> {
+  protected searchFields = ["name", "pay_type"];
+
   constructor() {
     super(SALARY_SCHEMES_COLLECTION);
   }

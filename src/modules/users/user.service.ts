@@ -1,10 +1,15 @@
 import { BaseService, HttpError } from "../../core/base";
 import { User } from "./user.model";
 import UserRepository from "./user.repository";
+import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination.dto";
 
 export class UserService extends BaseService<User> {
   constructor(repo = new UserRepository()) {
     super(repo);
+  }
+
+  async listPaginated(query: PaginationQueryDto): Promise<PaginatedResponse<User>> {
+    return await (this.repo as UserRepository).findAllPaginated(query);
   }
 
   /**
@@ -22,6 +27,21 @@ export class UserService extends BaseService<User> {
     if (!user)
       throw new HttpError(404, "Không tìm thấy người dùng", "USER_NOT_FOUND");
     return user;
+  }
+
+  /**
+   * Lấy thông tin user hiện tại (dùng cho /users/me)
+   * Sẽ populate employee info nếu có
+   */
+  async getCurrentUser(directusClient: any) {
+    try {
+      // Sử dụng AuthService để lấy full identity
+      const authService = (await import("../auth/auth.service")).default;
+      return await authService.getUserIdentity(directusClient);
+    } catch (error) {
+      console.error("❌ Error getting current user:", error);
+      throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
+    }
   }
 
   /**
@@ -51,13 +71,87 @@ export class UserService extends BaseService<User> {
   }
 
   /**
-   * Xoá người dùng (soft hoặc hard delete tuỳ Directus setup)
+   * Xoá người dùng (cascade delete - xóa employee liên quan trước)
    */
   async remove(id: number | string) {
     const user = await this.repo.findById(id);
     if (!user)
       throw new HttpError(404, "Không tìm thấy người dùng", "USER_NOT_FOUND");
 
+    // Cascade delete: tìm và xóa employee liên quan
+    const directusClient = (this.repo as any).directus;
+    
+    // Tìm employee có user_id này
+    const employees = await directusClient.items("employees").readByQuery({
+      filter: { user_id: { _eq: id } },
+      fields: ["id"]
+    });
+    
+    const employeeIds = employees.data?.map((e: any) => e.id) || [];
+    
+    // Xóa từng employee (sẽ trigger cascade delete của employee)
+    for (const empId of employeeIds) {
+      // Xóa contracts
+      await directusClient.items("contracts").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa deductions
+      await directusClient.items("deductions").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa rfid_cards
+      await directusClient.items("rfid_cards").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa attendance_logs
+      await directusClient.items("attendance_logs").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa attendance_shifts
+      await directusClient.items("attendance_shifts").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa employee_availability
+      await directusClient.items("employee_availability").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa schedule_assignments
+      await directusClient.items("schedule_assignments").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa monthly_employee_stats
+      await directusClient.items("monthly_employee_stats").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa salary_requests
+      await directusClient.items("salary_requests").delete({
+        filter: { employee_id: { _eq: empId } }
+      });
+      
+      // Xóa schedule_change_requests
+      await directusClient.items("schedule_change_requests").delete({
+        filter: { requester_id: { _eq: empId } }
+      });
+      
+      // Update devices
+      await directusClient.items("devices").update(
+        { employee_id_pending: null },
+        { filter: { employee_id_pending: { _eq: empId } } }
+      );
+      
+      // Xóa employee
+      await directusClient.items("employees").delete(empId);
+    }
+    
+    // Cuối cùng xóa user
     await this.repo.delete(id);
   }
 }

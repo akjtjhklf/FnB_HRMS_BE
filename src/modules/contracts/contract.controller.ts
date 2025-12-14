@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import ContractService from "./contract.service";
 import { toContractResponseDto } from "./contract.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new ContractService();
 
@@ -10,15 +11,20 @@ const service = new ContractService();
  * Lấy danh sách hợp đồng
  */
 export const listContracts = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
+    
     return sendSuccess(
       res,
-      data.map(toContractResponseDto),
+      {
+        items: result.data.map(toContractResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách hợp đồng thành công"
     );
@@ -59,6 +65,11 @@ export const createContract = async (
   next: NextFunction
 ) => {
   try {
+    console.log("=== CREATE CONTRACT DEBUG ===");
+    console.log("Request body (after validation):", JSON.stringify(req.body, null, 2));
+    console.log("salary_scheme_id:", req.body.salary_scheme_id);
+    console.log("============================");
+    
     const data = await service.create(req.body);
     return sendSuccess(
       res,
@@ -81,7 +92,18 @@ export const updateContract = async (
 ) => {
   try {
     const id = String(req.params.id);
+    
+    console.log("=== UPDATE CONTRACT DEBUG ===");
+    console.log("Contract ID:", id);
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
+    console.log("salary_scheme_id trong body:", req.body.salary_scheme_id);
+    
     const data = await service.update(id, req.body);
+    
+    console.log("Data sau khi update:", JSON.stringify(data, null, 2));
+    console.log("salary_scheme_id sau update:", data.salary_scheme_id);
+    console.log("============================");
+    
     return sendSuccess(
       res,
       toContractResponseDto(data),

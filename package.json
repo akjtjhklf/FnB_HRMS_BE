@@ -6,16 +6,19 @@
         "build": "tsc -p tsconfig.json",
         "start": "node dist/server.js",
         "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-        "seed": "ts-node src/seed.ts"
+        "seed": "ts-node src/seed.ts",
+        "seed:schedule": "ts-node scripts/seed-complete-schedule-payroll.ts"
     },
     "dependencies": {
-        "@directus/sdk": "^16.1.1",
+        "@directus/sdk": "^20.2.0",
+        "@novu/node": "^2.6.6",
         "@types/swagger-jsdoc": "^6.0.4",
         "@types/swagger-ui-express": "^4.1.8",
         "class-transformer": "^0.5.1",
         "class-validator": "^0.14.0",
         "cloudinary": "^2.7.0",
         "cors": "^2.8.5",
+        "dayjs": "^1.11.19",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
         "helmet": "^7.1.0",

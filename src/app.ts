@@ -9,6 +9,7 @@ import authRouter from "./modules/auth/auth.routes";
 import usersRouter from "./modules/users/user.routes";
 import pemissionsRouter from "./modules/permissions/permission.routes";
 import policiesRouter from "./modules/policies/policy.routes";
+import collectionsRouter from "./modules/collections/collection.routes";
 
 // ========== HR CORE ==========
 import employeesRouter from "./modules/employees/employee.routes";
@@ -19,12 +20,14 @@ import deductionsRouter from "./modules/deductions/deduction.routes";
 import salarySchemesRouter from "./modules/salary-schemes/salary-scheme.routes";
 import salaryRequestsRouter from "./modules/salary-requests/salary-request.routes";
 import monthlyEmployeeStatsRouter from "./modules/monthly-employee-stats/monthly-employee-stat.routes";
+import monthlyPayrollsRouter from "./modules/monthly-payrolls/monthly-payroll.routes";
 
 // ========== ATTENDANCE & SHIFT ==========
 import shiftsRouter from "./modules/shifts/shift.routes";
 import shiftTypesRouter from "./modules/shift-types/shift-type.routes";
 import weeklyScheduleRouter from "./modules/weekly-schedule/weekly-schedule.routes";
 import attendanceShiftsRouter from "./modules/attendance-shifts/attendance-shift.routes";
+import attendanceRouter from "./modules/attendance-shifts/attendance.routes";  // ✅ NEW
 import attendanceLogsRouter from "./modules/attendance-logs/attendance-log.routes";
 import attendanceAdjustmentsRouter from "./modules/attendance-adjustments/attendance-adjustment.routes";
 import shiftPositionRequirementsRouter from "./modules/shift-position-requirements/shift-position-requirement.routes";
@@ -40,17 +43,27 @@ import devicesRouter from "./modules/devices/device.routes";
 import deviceEventsRouter from "./modules/device-events/device-events.routes";
 import rfidCardsRouter from "./modules/rfid-cards/rfid-card.routes";
 
+// ========== NOTIFICATIONS ==========
+import notificationsRouter from "./modules/notifications/notification.routes";
+import notificationLogsRouter from "./modules/notifications/notification-log.routes";
+
 // ========== FILE UPLOAD ==========
 import filesRouter from "./modules/files/file.routes";
 import { setupSwagger } from "./config/swagger.config";
 import { apiKeyAuth } from "./middlewares/auth.middleware";
+import analysisRoutes from "./modules/analysis/analysis.routes";
 
 const app = express();
 // bắt buộc API key cho tất cả
 
 // ========== GLOBAL MIDDLEWARE ==========
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:3001','http://localhost:4000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'ngrok-skip-browser-warning']
+}));
 app.use(morgan("dev"));
 app.use(express.json());
 
@@ -66,6 +79,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/permissions", pemissionsRouter);
 app.use("/api/policies", policiesRouter);
+app.use("/api/collections", collectionsRouter);
 
 // 👨‍💼 HR Core
 app.use("/api/employees", employeesRouter);
@@ -76,12 +90,14 @@ app.use("/api/deductions", deductionsRouter);
 app.use("/api/salary-schemes", salarySchemesRouter);
 app.use("/api/salary-requests", salaryRequestsRouter);
 app.use("/api/monthly-employee-stats", monthlyEmployeeStatsRouter);
+app.use("/api/monthly-payrolls", monthlyPayrollsRouter);
 
 // 🕒 Attendance & Shift
 app.use("/api/shifts", shiftsRouter);
 app.use("/api/shift-types", shiftTypesRouter);
-app.use("/api/weekly-schedule", weeklyScheduleRouter);
+app.use("/api/weekly-schedules", weeklyScheduleRouter);
 app.use("/api/attendance-shifts", attendanceShiftsRouter);
+app.use("/api/attendance", attendanceRouter);  // ✅ NEW: Check-in/Check-out endpoints
 app.use("/api/attendance-logs", attendanceLogsRouter);
 app.use("/api/attendance-adjustments", attendanceAdjustmentsRouter);
 app.use("/api/shift-position-requirements", shiftPositionRequirementsRouter);
@@ -97,11 +113,20 @@ app.use("/api/schedule-change-requests", scheduleChangeRequestsRouter);
 
 // ⚙️ Devices & RFID
 app.use("/api/devices", devicesRouter);
-app.use("/api/device-events", deviceEventsRouter);
-app.use("/api/rfid-cards", rfidCardsRouter);
+app.use("/api/device_events", deviceEventsRouter);
+app.use("/api/rfid_cards", rfidCardsRouter);
+
+// 🔔 Notifications
+app.use("/api/notifications", notificationsRouter);
+app.use("/api/notification_logs", notificationLogsRouter);
 
 // 🗂️ File Upload (Cloudinary + Directus)
 app.use("/api/files", filesRouter);
+app.use("/analysis", analysisRoutes);
+
+// 📊 Analytics
+import analyticsRouter from "./modules/analytics/analytics.routes";
+app.use("/api/analytics", analyticsRouter);
 
 setupSwagger(app);
 app.use(apiKeyAuth(false)); 

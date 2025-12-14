@@ -3,6 +3,7 @@
   import { HttpError } from "../../core/base";
   import UserService from "./user.service";
   import { toUserResponseDto } from "./user.dto";
+  import { parsePaginationQuery } from "../../utils/query.utils";
 
   const service = new UserService();
 
@@ -10,15 +11,20 @@
    * Lấy danh sách người dùng
    */
   export const listUsers = async (
-    _req: Request,
+    req: Request,
     res: Response<ApiResponse<unknown>>,
     next: NextFunction
   ) => {
     try {
-      const data = await service.list();
+      const query = parsePaginationQuery(req);
+      const result = await service.listPaginated(query);
+      
       return sendSuccess(
         res,
-        data.map(toUserResponseDto),
+        {
+          items: result.data.map(toUserResponseDto),
+          ...result.meta,
+        },
         200,
         "Lấy danh sách người dùng thành công"
       );
@@ -105,6 +111,36 @@
       const id = String(req.params.id);
       await service.remove(id);
       return sendSuccess(res, null, 200, "Xoá người dùng thành công");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * Lấy thông tin user hiện tại (authenticated user)
+   * Bao gồm Employee, Role, Policies, và Permissions
+   */
+  export const getMe = async (
+    req: Request,
+    res: Response<ApiResponse<unknown>>,
+    next: NextFunction
+  ) => {
+    try {
+      const directusClient = (req as any).directusClient;
+      
+      if (!directusClient) {
+        throw new HttpError(401, "Unauthorized", "UNAUTHORIZED");
+      }
+
+      // Sử dụng service để lấy full identity
+      const identity = await service.getCurrentUser(directusClient);
+
+      return sendSuccess(
+        res,
+        identity,
+        200,
+        "Lấy thông tin người dùng hiện tại thành công"
+      );
     } catch (err) {
       next(err);
     }

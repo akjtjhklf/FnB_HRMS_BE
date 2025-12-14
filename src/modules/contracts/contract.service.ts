@@ -1,10 +1,32 @@
 import { BaseService, HttpError } from "../../core/base";
 import { Contract } from "./contract.model";
 import ContractRepository from "./contract.repository";
+import {
+  PaginationQueryDto,
+  PaginatedResponse,
+} from "../../core/dto/pagination.dto";
+import { toEmployeeResponseDto } from "../employees/employee.dto";
 
 export class ContractService extends BaseService<Contract> {
   constructor(repo = new ContractRepository()) {
     super(repo);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<any>> {
+    const { data, meta } = await (
+      this.repo as ContractRepository
+    ).findAllPaginated(query);
+
+    const mappedData = data.map((contract) => ({
+      ...contract,
+      employee: contract.employee_id
+        ? toEmployeeResponseDto(contract.employee_id as any)
+        : null,
+    }));
+
+    return { data: mappedData, meta };
   }
 
   /**
@@ -28,6 +50,7 @@ export class ContractService extends BaseService<Contract> {
    * Tạo hợp đồng mới
    */
   async create(data: Partial<Contract>) {
+    console.log("Creating contract with data:", data);
     return await this.repo.create(data);
   }
 
@@ -35,6 +58,7 @@ export class ContractService extends BaseService<Contract> {
    * Cập nhật hợp đồng
    */
   async update(id: string, data: Partial<Contract>) {
+    console.log(`Updating contract ${id} with data:`, data);
     const existing = await this.repo.findById(id);
     if (!existing)
       throw new HttpError(404, "Không tìm thấy hợp đồng", "CONTRACT_NOT_FOUND");

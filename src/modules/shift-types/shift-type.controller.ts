@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import ShiftTypeService from "./shift-type.service";
 import { toShiftTypeResponseDto } from "./shift-type.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new ShiftTypeService();
 
@@ -10,15 +11,20 @@ const service = new ShiftTypeService();
  * Lấy danh sách ca làm việc
  */
 export const listShiftTypes = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
+    // Cast result to PaginatedResponse<ShiftType>
     return sendSuccess(
       res,
-      data.map(toShiftTypeResponseDto),
+      {
+        items: result.data.map(toShiftTypeResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách ca làm việc thành công"
     );
@@ -59,9 +65,11 @@ export const createShiftType = async (
   next: NextFunction
 ) => {
   try {
+    console.log("📝 Creating shift type with data:", req.body);
     const data = await service.create(req.body);
     return sendSuccess(res, toShiftTypeResponseDto(data), 201, "Tạo ca làm việc thành công");
   } catch (err) {
+    console.error("❌ Error creating shift type:", err);
     next(err);
   }
 };

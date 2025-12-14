@@ -3,6 +3,7 @@ import { ApiResponse, sendSuccess } from "../../core/response";
 import { HttpError } from "../../core/base";
 import ShiftPositionRequirementService from "./shift-position-requirement.service";
 import { toShiftPositionRequirementResponseDto } from "./shift-position-requirement.dto";
+import { parsePaginationQuery } from "../../utils/query.utils";
 
 const service = new ShiftPositionRequirementService();
 
@@ -10,15 +11,19 @@ const service = new ShiftPositionRequirementService();
  * Lấy danh sách yêu cầu vị trí ca làm
  */
 export const listShiftPositionRequirements = async (
-  _req: Request,
+  req: Request,
   res: Response<ApiResponse<unknown>>,
   next: NextFunction
 ) => {
   try {
-    const data = await service.list();
+    const query = parsePaginationQuery(req);
+    const result = await service.listPaginated(query);
     return sendSuccess(
       res,
-      data.map(toShiftPositionRequirementResponseDto),
+      {
+        items: result.data.map(toShiftPositionRequirementResponseDto),
+        ...result.meta,
+      },
       200,
       "Lấy danh sách yêu cầu vị trí ca làm thành công"
     );
@@ -38,8 +43,7 @@ export const getShiftPositionRequirement = async (
   try {
     const id = String(req.params.id);
     const data = await service.get(id);
-    if (!data)
-      throw new HttpError(404, "Không tìm thấy yêu cầu vị trí ca làm");
+    if (!data) throw new HttpError(404, "Không tìm thấy yêu cầu vị trí ca làm");
     return sendSuccess(
       res,
       toShiftPositionRequirementResponseDto(data),
@@ -68,6 +72,40 @@ export const createShiftPositionRequirement = async (
       "Tạo yêu cầu vị trí ca làm thành công"
     );
   } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Tạo nhiều yêu cầu vị trí ca làm cùng lúc
+ */
+export const createBulkShiftPositionRequirements = async (
+  req: Request,
+  res: Response<ApiResponse<unknown>>,
+  next: NextFunction
+) => {
+  try {
+    console.log("📦 Received bulk position requirements request");
+    console.log("📊 Request body:", JSON.stringify(req.body, null, 2));
+    
+    const items = req.body;
+    if (!Array.isArray(items)) {
+      console.error("❌ Body is not an array:", typeof items);
+      throw new HttpError(400, "Body phải là một mảng các yêu cầu vị trí");
+    }
+    
+    console.log(`✅ Valid array with ${items.length} items`);
+    const data = await service.createBulk(items);
+    console.log(`✅ Created ${data.length} position requirements successfully`);
+    
+    return sendSuccess(
+      res,
+      data.map(toShiftPositionRequirementResponseDto),
+      201,
+      `Tạo thành công ${data.length} yêu cầu vị trí ca làm`
+    );
+  } catch (err) {
+    console.error("❌ Error in createBulkShiftPositionRequirements:", err);
     next(err);
   }
 };
@@ -105,12 +143,7 @@ export const deleteShiftPositionRequirement = async (
   try {
     const id = String(req.params.id);
     await service.remove(id);
-    return sendSuccess(
-      res,
-      null,
-      200,
-      "Xoá yêu cầu vị trí ca làm thành công"
-    );
+    return sendSuccess(res, null, 200, "Xoá yêu cầu vị trí ca làm thành công");
   } catch (err) {
     next(err);
   }

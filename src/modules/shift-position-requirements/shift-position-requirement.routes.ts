@@ -4,6 +4,7 @@ import {
   listShiftPositionRequirements,
   getShiftPositionRequirement,
   createShiftPositionRequirement,
+  createBulkShiftPositionRequirements,
   updateShiftPositionRequirement,
   deleteShiftPositionRequirement,
 } from "./shift-position-requirement.controller";
@@ -21,7 +22,8 @@ router.post(
   validateBody(createShiftPositionRequirementSchema),
   createShiftPositionRequirement
 );
-router.put(
+router.post("/bulk", createBulkShiftPositionRequirements);
+router.patch(
   "/:id",
   validateBody(updateShiftPositionRequirementSchema),
   updateShiftPositionRequirement

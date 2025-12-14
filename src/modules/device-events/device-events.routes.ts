@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { validateBody } from '../../middlewares/validate.middleware';
-import { CreateAttendanceLogDto } from '../attendance-logs/attendance-log.dto';
+import { createAttendanceLogSchema, CreateAttendanceLogDto } from '../attendance-logs/attendance-log.dto';
 import AttendanceLogService from '../attendance-logs/attendance-log.service';
-import { ApiResponse } from '../../core/base';
+import { ApiResponse } from '../../core/response';
 
 const router = Router();
 const attendanceLogService = new AttendanceLogService();
 
 // Webhook to receive RFID events from devices
-router.post('/', validateBody(CreateAttendanceLogDto), async (req, res: import('express').Response<ApiResponse<unknown>>) => {
+router.post('/', validateBody(createAttendanceLogSchema), async (req, res: import('express').Response<ApiResponse<unknown>>) => {
   const payload = req.body as CreateAttendanceLogDto;
   const log = await attendanceLogService.create({
     ...payload,

@@ -6,6 +6,8 @@ import {
   createAttendanceAdjustment,
   updateAttendanceAdjustment,
   deleteAttendanceAdjustment,
+  approveAttendanceAdjustment,
+  rejectAttendanceAdjustment,
 } from "./attendance-adjustment.controller";
 import {
   createAttendanceAdjustmentSchema,
@@ -21,11 +23,14 @@ router.post(
   validateBody(createAttendanceAdjustmentSchema),
   createAttendanceAdjustment
 );
-router.put(
+router.patch(
   "/:id",
   validateBody(updateAttendanceAdjustmentSchema),
   updateAttendanceAdjustment
 );
 router.delete("/:id", deleteAttendanceAdjustment);
+
+router.patch("/:id/approve", approveAttendanceAdjustment);
+router.patch("/:id/reject", rejectAttendanceAdjustment);
 
 export default router;

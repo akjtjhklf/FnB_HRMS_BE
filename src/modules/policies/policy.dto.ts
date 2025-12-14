@@ -10,6 +10,10 @@ export const createPolicySchema = z.object({
   enforce_tfa: z.boolean().default(false),
   admin_access: z.boolean().default(false),
   app_access: z.boolean().default(false),
+  // Many-to-many relationships via directus_access
+  users: z.array(z.any()).optional(), // Array of user IDs or access records
+  roles: z.array(z.any()).optional(), // Array of role IDs or access records
+  permissions: z.array(z.any()).optional(), // One-to-many permissions
 });
 
 export const updatePolicySchema = createPolicySchema.partial();
@@ -23,6 +27,9 @@ export const policyResponseSchema = z.object({
   enforce_tfa: z.boolean(),
   admin_access: z.boolean(),
   app_access: z.boolean(),
+  users: z.array(z.any()).optional(), // Users linked via directus_access
+  roles: z.array(z.any()).optional(), // Roles linked via directus_access
+  permissions: z.array(z.any()).optional(), // Permissions for this policy
 });
 
 // ====== TYPES ======
@@ -40,4 +47,7 @@ export const toPolicyResponseDto = (entity: Policy): PolicyResponseDto => ({
   enforce_tfa: entity.enforce_tfa,
   admin_access: entity.admin_access,
   app_access: entity.app_access,
+  users: (entity as any).users,
+  roles: (entity as any).roles,
+  permissions: (entity as any).permissions,
 });

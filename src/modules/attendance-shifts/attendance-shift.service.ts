@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { AttendanceShift } from "./attendance-shift.model";
 import AttendanceShiftRepository from "./attendance-shift.repository";
 import crypto from "crypto";
@@ -13,6 +17,14 @@ export class AttendanceShiftService extends BaseService<AttendanceShift> {
    */
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<AttendanceShift>> {
+    return await (this.repo as AttendanceShiftRepository).findAllPaginated(
+      query
+    );
   }
 
   /**
@@ -52,13 +64,21 @@ export class AttendanceShiftService extends BaseService<AttendanceShift> {
   }
 
   /**
-   * Xoá bản ghi ca làm việc
+   * Xoá bản ghi ca làm việc (cascade delete)
    */
   async remove(id: string) {
     const record = await this.repo.findById(id);
     if (!record)
       throw new HttpError(404, "Không tìm thấy ca làm việc", "SHIFT_NOT_FOUND");
 
+    // Cascade delete: xóa attendance_adjustments
+    const directusClient = (this.repo as any).directus;
+    
+    await directusClient.items("attendance_adjustments").delete({
+      filter: { attendance_shift_id: { _eq: id } }
+    });
+    
+    // Cuối cùng xóa attendance_shift
     await this.repo.delete(id);
   }
 }

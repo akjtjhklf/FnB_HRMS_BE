@@ -1,4 +1,8 @@
 import { BaseService, HttpError } from "../../core/base";
+import {
+  PaginatedResponse,
+  PaginationQueryDto,
+} from "../../core/dto/pagination.dto";
 import { EmployeeAvailabilityPosition } from "./employee-availability-position.model";
 import EmployeeAvailabilityPositionsRepository from "./employee-availability-position.repository";
 
@@ -9,6 +13,14 @@ export class EmployeeAvailabilityPositionsService extends BaseService<EmployeeAv
 
   async list(query?: Record<string, unknown>) {
     return await this.repo.findAll(query);
+  }
+
+  async listPaginated(
+    query: PaginationQueryDto
+  ): Promise<PaginatedResponse<EmployeeAvailabilityPosition>> {
+    return await (
+      this.repo as EmployeeAvailabilityPositionsRepository
+    ).findAllPaginated(query);
   }
 
   async get(id: string) {
@@ -45,6 +57,7 @@ export class EmployeeAvailabilityPositionsService extends BaseService<EmployeeAv
         "Không tìm thấy dữ liệu",
         "EMPLOYEE_AVAILABILITY_POSITION_NOT_FOUND"
       );
+    
     await this.repo.delete(id);
   }
 }

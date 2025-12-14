@@ -14,7 +14,7 @@ const router = Router();
 router.get("/", listPolicies);
 router.get("/:id", getPolicy);
 router.post("/", validateBody(createPolicySchema), createPolicy);
-router.put("/:id", validateBody(updatePolicySchema), updatePolicy);
+router.patch("/:id", validateBody(updatePolicySchema), updatePolicy);
 router.delete("/:id", deletePolicy);
 
 export default router;
