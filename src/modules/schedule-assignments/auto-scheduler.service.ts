@@ -165,7 +165,7 @@ export class AutoSchedulerService {
 
     // 7. Validate & Save
     const validation = this.validateAssignments(assignments, shifts, employees);
-    
+
     if (!dryRun) {
       const savedAssignments = await this.assignmentRepo.createMany(
         assignments.map(a => ({
@@ -262,7 +262,7 @@ export class AutoSchedulerService {
       // Find consecutive pairs
       for (let i = 0; i < dailyShifts.length - 1; i++) {
         const s1 = dailyShifts[i];
-        const s2 = dailyShifts[i+1];
+        const s2 = dailyShifts[i + 1];
 
         if (this.isConsecutive(s1.shift, s2.shift)) {
           // Find common positions needed in both shifts
@@ -273,7 +273,7 @@ export class AutoSchedulerService {
             if (!this.needsMore(s1, posId, assignments) || !this.needsMore(s2, posId, assignments)) continue;
 
             // Filter Full-time employees available for BOTH
-            const candidates = Array.from(employeeState.values()).filter(e => 
+            const candidates = Array.from(employeeState.values()).filter(e =>
               e.contractType === "full_time" &&
               this.isAvailable(e, s1.shift.id, posId) &&
               this.isAvailable(e, s2.shift.id, posId)
@@ -283,16 +283,16 @@ export class AutoSchedulerService {
             const hasCrossMidnight = this.hasAnyCrossMidnight(s1.shift, s2.shift);
             const scores = candidates.map(e => ({
               ...e,
-              score: this.calculateScore(e, s1.shift, posId, positionMap, true, 2, hasCrossMidnight) + 
-                     this.calculateScore(e, s2.shift, posId, positionMap, true, 2, hasCrossMidnight)
+              score: this.calculateScore(e, s1.shift, posId, positionMap, true, 2, hasCrossMidnight) +
+                this.calculateScore(e, s2.shift, posId, positionMap, true, 2, hasCrossMidnight)
             })).sort((a, b) => b.score - a.score);
 
             // Assign
             for (const cand of scores) {
               if (!this.needsMore(s1, posId, assignments) || !this.needsMore(s2, posId, assignments)) break;
-              
-              if (this.checkConstraints(cand, s1.shift, assignments) && 
-                  this.checkConstraints(cand, s2.shift, assignments)) {
+
+              if (this.checkConstraints(cand, s1.shift, assignments) &&
+                this.checkConstraints(cand, s2.shift, assignments)) {
                 createAssignment(cand.employee.id, s1.shift.id, posId, cand.score / 2, "FT-Combo");
                 createAssignment(cand.employee.id, s2.shift.id, posId, cand.score / 2, "FT-Combo");
               }
@@ -309,7 +309,7 @@ export class AutoSchedulerService {
 
       for (let i = 0; i < dailyShifts.length - 1; i++) {
         const s1 = dailyShifts[i];
-        const s2 = dailyShifts[i+1];
+        const s2 = dailyShifts[i + 1];
 
         if (this.isConsecutive(s1.shift, s2.shift)) {
           const commonPositions = this.getCommonPositions(s1, s2);
@@ -318,7 +318,7 @@ export class AutoSchedulerService {
             if (!this.needsMore(s1, posId, assignments) || !this.needsMore(s2, posId, assignments)) continue;
 
             // Filter Part-time employees available for BOTH
-            const candidates = Array.from(employeeState.values()).filter(e => 
+            const candidates = Array.from(employeeState.values()).filter(e =>
               e.contractType === "part_time" &&
               this.isAvailable(e, s1.shift.id, posId) &&
               this.isAvailable(e, s2.shift.id, posId)
@@ -328,15 +328,15 @@ export class AutoSchedulerService {
             const hasCrossMidnight = this.hasAnyCrossMidnight(s1.shift, s2.shift);
             const scores = candidates.map(e => ({
               ...e,
-              score: this.calculateScore(e, s1.shift, posId, positionMap, true, 2, hasCrossMidnight) + 
-                     this.calculateScore(e, s2.shift, posId, positionMap, true, 2, hasCrossMidnight)
+              score: this.calculateScore(e, s1.shift, posId, positionMap, true, 2, hasCrossMidnight) +
+                this.calculateScore(e, s2.shift, posId, positionMap, true, 2, hasCrossMidnight)
             })).sort((a, b) => b.score - a.score);
 
             for (const cand of scores) {
               if (!this.needsMore(s1, posId, assignments) || !this.needsMore(s2, posId, assignments)) break;
-              
-              if (this.checkConstraints(cand, s1.shift, assignments) && 
-                  this.checkConstraints(cand, s2.shift, assignments)) {
+
+              if (this.checkConstraints(cand, s1.shift, assignments) &&
+                this.checkConstraints(cand, s2.shift, assignments)) {
                 createAssignment(cand.employee.id, s1.shift.id, posId, cand.score / 2, "PT-Combo");
                 createAssignment(cand.employee.id, s2.shift.id, posId, cand.score / 2, "PT-Combo");
               }
@@ -348,8 +348,8 @@ export class AutoSchedulerService {
 
     // --- BƯỚC 4: ĐIỀN CÁC SLOT CÒN LẠI (SINGLE SHIFTS) ---
     // Flatten all shifts and sort by time
-    const allShifts = shifts.sort((a, b) => 
-      new Date(a.shift.shift_date + 'T' + a.shift.start_at).getTime() - 
+    const allShifts = shifts.sort((a, b) =>
+      new Date(a.shift.shift_date + 'T' + a.shift.start_at).getTime() -
       new Date(b.shift.shift_date + 'T' + b.shift.start_at).getTime()
     );
 
@@ -359,7 +359,7 @@ export class AutoSchedulerService {
       for (const req of requirements) {
         while (this.needsMore(shiftData, req.position_id, assignments)) {
           // Find all available candidates (FT or PT) not yet assigned to this shift
-          const candidates = Array.from(employeeState.values()).filter(e => 
+          const candidates = Array.from(employeeState.values()).filter(e =>
             this.isAvailable(e, shift.id, req.position_id) &&
             !assignments.some(a => a.employee_id === e.employee.id && a.shift_id === shift.id)
           );
@@ -537,8 +537,17 @@ export class AutoSchedulerService {
   private needsMore(shiftData: ShiftWithRequirements, posId: string, assignments: Partial<ScheduleAssignment>[]): boolean {
     const req = shiftData.requirements.find(r => r.position_id === posId);
     if (!req) return false;
-    const assigned = assignments.filter(a => a.shift_id === shiftData.shift.id && a.position_id === posId).length;
-    return assigned < req.required_count;
+
+    // Đếm assignments MỚI (đang tạo trong run này)
+    const newAssigned = assignments.filter(a => a.shift_id === shiftData.shift.id && a.position_id === posId).length;
+
+    // Đếm assignments ĐÃ CÓ SẴN trong DB (từ lần xếp lịch trước hoặc xếp thủ công)
+    const existingAssigned = shiftData.assignments.filter(a => a.position_id === posId && a.status !== "cancelled").length;
+
+    // Tổng = mới + cũ
+    const totalAssigned = newAssigned + existingAssigned;
+
+    return totalAssigned < req.required_count;
   }
 
   private isAvailable(emp: EmployeeWithAvailability, shiftId: string, posId: string): boolean {
@@ -583,11 +592,17 @@ export class AutoSchedulerService {
     // Check coverage
     for (const shiftData of shifts) {
       for (const req of shiftData.requirements) {
-        const assigned = assignments.filter(
+        // Đếm cả assignments mới và đã có sẵn
+        const newAssigned = assignments.filter(
           a => a.shift_id === shiftData.shift.id && a.position_id === req.position_id
         ).length;
-        if (assigned < req.required_count) {
-          warnings.push(`Shift ${shiftData.shift.shift_date} Pos ${req.position_id}: Need ${req.required_count}, got ${assigned}`);
+        const existingAssigned = shiftData.assignments.filter(
+          a => a.position_id === req.position_id && a.status !== "cancelled"
+        ).length;
+        const totalAssigned = newAssigned + existingAssigned;
+
+        if (totalAssigned < req.required_count) {
+          warnings.push(`Shift ${shiftData.shift.shift_date} Pos ${req.position_id}: Need ${req.required_count}, got ${totalAssigned} (${existingAssigned} existing + ${newAssigned} new)`);
         }
       }
     }
@@ -670,7 +685,7 @@ export class AutoSchedulerService {
     const date = new Date(weekStart);
     date.setMonth(date.getMonth() - 1);
     const prevMonthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    
+
     const payrolls = await this.payrollRepo.findMany({
       filter: { month: { _eq: prevMonthStr } }
     });

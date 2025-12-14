@@ -220,7 +220,7 @@ export class DirectusRepository<
   /**
    * Tạo mới item
    * WORKAROUND: Directus SDK createItem có bug nghiêm trọng - trả về cached response
-   * Solution: Sử dụng raw HTTP POST request thay vì SDK
+   * Solution: Sử dụng raw HTTP POST request + Create-then-Verify pattern
    */
   async create(data: Partial<T>): Promise<T> {
     try {
@@ -257,11 +257,11 @@ export class DirectusRepository<
         body: JSON.stringify(data),
       });
       console.log(`📨 [${this.collection}] Response status: ${response.status} ${response.statusText}`);
-      console.log(`📨 [${this.collection}] Response headers:`, Object.fromEntries(response.headers.entries()));
 
-      // Check for 200 - Directus might be doing UPSERT or returning existing record
-      if (response.status === 200) {
-        console.warn(`⚠️  [${this.collection}] Got 200 instead of 201 - Directus may be doing UPSERT or returning cached record!`);
+      // Check for cache bug indicator
+      const isCacheBug = response.status === 200;
+      if (isCacheBug) {
+        console.warn(`⚠️  [${this.collection}] Got 200 instead of 201 - Directus cache bug detected!`);
       }
 
       if (!response.ok) {
@@ -271,41 +271,81 @@ export class DirectusRepository<
       }
 
       const rawBody = await response.text();
-      console.log(`📨 [${this.collection}] Raw response body length: ${rawBody.length}`);
-      console.log(`📨 [${this.collection}] Raw response body: ${rawBody.substring(0, 500)}...`);
-
       const result = JSON.parse(rawBody);
-      const created = result.data;
+      const responseRecord = result.data;
 
-      console.log(`✅ [${this.collection}] Created item via HTTP:`, JSON.stringify(created, null, 2));
+      // ✨ CRITICAL: Validate response matches sent data
+      const criticalFields = Object.keys(data).filter(k =>
+        (data as any)[k] !== null && (data as any)[k] !== undefined
+      );
 
-      // Check if any fields were lost
-      const sentKeys = Object.keys(data);
-      const lostKeys = sentKeys.filter(key => !(key in (created || {})));
-
-      if (lostKeys.length > 0) {
-        console.warn(`⚠️  [${this.collection}] Fields NOT saved:`, lostKeys);
-        lostKeys.forEach(key => {
-          console.warn(`   - ${key}: sent=${JSON.stringify((data as any)[key])}, received=undefined`);
-        });
-      }
-
-      // Kiểm tra xem các field có giá trị đúng không
-      for (const key of sentKeys) {
-        if (key in (created || {})) {
-          const sentValue = (data as any)[key];
-          const receivedValue = (created as any)[key];
-          if (sentValue !== receivedValue && sentValue !== null && sentValue !== undefined) {
-            console.warn(`⚠️  [${this.collection}] Field value mismatch:`, {
-              field: key,
-              sent: sentValue,
-              received: receivedValue
-            });
-          }
+      let hasMismatch = false;
+      for (const field of criticalFields) {
+        const sent = (data as any)[field];
+        const received = (responseRecord as any)?.[field];
+        if (sent !== received) {
+          console.error(`❌ [${this.collection}] CRITICAL MISMATCH: ${field} - sent: ${sent}, received: ${received}`);
+          hasMismatch = true;
         }
       }
 
-      return created as T;
+      // ✨ If mismatch or 200 response, query DB directly for actual created record
+      if (hasMismatch || isCacheBug) {
+        console.log(`🔄 [${this.collection}] Cache bug detected - querying DB for actual record...`);
+
+        // Wait for Directus to persist
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        // Build filter from sent data - ONLY use core identifying fields (ending with _id)
+        // This avoids permission errors on fields that may not exist in Directus schema
+        const filter: any = {};
+        const coreFields = ['id', 'employee_id', 'shift_id', 'user_id', 'position_id', 'schedule_id'];
+
+        for (const [key, value] of Object.entries(data)) {
+          // Only include core identifying fields that have values
+          if (value !== null && value !== undefined && coreFields.includes(key)) {
+            filter[key] = { _eq: value };
+          }
+        }
+
+        console.log(`🔍 [${this.collection}] Querying with filter:`, JSON.stringify(filter, null, 2));
+
+        // Query for the actual record
+        const actualRecords = await this.findAll({
+          filter,
+          sort: ['-created_at'],
+          limit: 5,
+        });
+
+        console.log(`📊 [${this.collection}] Found ${actualRecords.length} matching records`);
+
+        if (actualRecords.length > 0) {
+          const actualRecord = actualRecords[0];
+          console.log(`✅ [${this.collection}] Returning actual record from DB:`, JSON.stringify(actualRecord, null, 2));
+          return actualRecord;
+        } else {
+          // Record was created but we can't find it with exact filter
+          // Try to find by created_at timestamp
+          console.warn(`⚠️  [${this.collection}] No exact match found, trying by timestamp...`);
+
+          const recentRecords = await this.findAll({
+            sort: ['-created_at'],
+            limit: 1,
+          });
+
+          if (recentRecords.length > 0) {
+            console.log(`✅ [${this.collection}] Returning most recent record:`, JSON.stringify(recentRecords[0], null, 2));
+            return recentRecords[0];
+          }
+
+          // Fallback: return the possibly-wrong response but log warning
+          console.error(`❌ [${this.collection}] Could not verify record creation - returning response as-is`);
+          return responseRecord as T;
+        }
+      }
+
+      console.log(`✅ [${this.collection}] Created item (no cache issue):`, JSON.stringify(responseRecord, null, 2));
+      return responseRecord as T;
     } catch (error: any) {
       console.error(`❌ [${this.collection}] Create error:`, error);
       throw new HttpError(

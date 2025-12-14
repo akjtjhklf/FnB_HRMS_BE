@@ -5,6 +5,7 @@ import { Position } from "./position.model";
 export const createPositionSchema = z.object({
   name: z.string().min(1, "Tên vị trí không được để trống"),
   description: z.string().optional().nullable(),
+  is_priority: z.boolean().optional().default(false),
 });
 
 export const updatePositionSchema = createPositionSchema.partial();
