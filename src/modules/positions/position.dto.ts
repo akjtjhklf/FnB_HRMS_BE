@@ -14,6 +14,7 @@ export const positionResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  is_priority: z.boolean().nullable(),
   created_at: z.string().nullable(),
   updated_at: z.string().nullable(),
 });
@@ -30,6 +31,7 @@ export const toPositionResponseDto = (
   id: entity.id,
   name: entity.name,
   description: entity.description ?? null,
+  is_priority: entity.is_priority ?? false,
   created_at: entity.created_at ?? null,
   updated_at: entity.updated_at ?? null,
 });

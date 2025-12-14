@@ -290,19 +290,25 @@ async function seedWeek22_28() {
         console.log(`   Created ${shiftPosReqData.length} shift requirements`);
 
         // =====================================================
-        // Create Employee Availability (100% rate)
+        // Create Employee Availability (90% rate)
         // =====================================================
-        console.log('\n[4] Creating Employee Availabilities (100% rate)...');
+        console.log('\n[4] Creating Employee Availabilities (90% rate)...');
         const availabilityData: any[] = [];
 
-        // Moi nhan vien dang ky TAT CA cac ca
-        employees.forEach((emp: any) => {
-            allShifts.forEach((shift: any) => {
-                availabilityData.push({
-                    employee_id: emp.id,
-                    shift_id: shift.id,
-                    status: 'available',
-                });
+        // Moi nhan vien dang ky 90% cac ca
+        employees.forEach((emp: any, empIdx: number) => {
+            allShifts.forEach((shift: any, shiftIdx: number) => {
+                // 90% chance to be available
+                const combinedIndex = empIdx * 100 + shiftIdx;
+                const isAvailable = (combinedIndex % 10) < 9; // 90%
+
+                if (isAvailable) {
+                    availabilityData.push({
+                        employee_id: emp.id,
+                        shift_id: shift.id,
+                        status: 'available',
+                    });
+                }
             });
         });
 
