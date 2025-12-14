@@ -29,6 +29,7 @@ import { WeeklySchedule, WEEKLY_SCHEDULE_COLLECTION } from "../weekly-schedule/w
 import { Contract, CONTRACTS_COLLECTION } from "../contracts/contract.model";
 import { MonthlyPayroll, MONTHLY_PAYROLLS_COLLECTION } from "../monthly-payrolls/monthly-payroll.model";
 import { Position, POSITIONS_COLLECTION } from "../positions/position.model";
+import { now, parseDate, DATE_FORMATS } from "../../utils/date.utils";
 
 /**
  * ============================================
@@ -170,8 +171,8 @@ export class AutoSchedulerService {
       const savedAssignments = await this.assignmentRepo.createMany(
         assignments.map(a => ({
           ...a,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: now().format(DATE_FORMATS.DATETIME),
+          updated_at: now().format(DATE_FORMATS.DATETIME),
         }))
       );
 
@@ -236,7 +237,7 @@ export class AutoSchedulerService {
         employee_id: empId,
         position_id: posId,
         assigned_by: assignedBy,
-        assigned_at: new Date().toISOString(),
+        assigned_at: now().format(DATE_FORMATS.DATETIME),
         status: "assigned",
         source: "auto",
         note: `${note} (Score: ${score.toFixed(1)})`,
@@ -349,8 +350,8 @@ export class AutoSchedulerService {
     // --- BƯỚC 4: ĐIỀN CÁC SLOT CÒN LẠI (SINGLE SHIFTS) ---
     // Flatten all shifts and sort by time
     const allShifts = shifts.sort((a, b) =>
-      new Date(a.shift.shift_date + 'T' + a.shift.start_at).getTime() -
-      new Date(b.shift.shift_date + 'T' + b.shift.start_at).getTime()
+      parseDate(a.shift.shift_date + 'T' + a.shift.start_at).valueOf() -
+      parseDate(b.shift.shift_date + 'T' + b.shift.start_at).valueOf()
     );
 
     for (const shiftData of allShifts) {
@@ -682,9 +683,8 @@ export class AutoSchedulerService {
 
     // Load Previous Month Payrolls (Approximate)
     // Assuming weekStart is like "2023-10-01", prev month is "2023-09"
-    const date = new Date(weekStart);
-    date.setMonth(date.getMonth() - 1);
-    const prevMonthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const date = parseDate(weekStart).subtract(1, 'month');
+    const prevMonthStr = date.format('YYYY-MM');
 
     const payrolls = await this.payrollRepo.findMany({
       filter: { month: { _eq: prevMonthStr } }

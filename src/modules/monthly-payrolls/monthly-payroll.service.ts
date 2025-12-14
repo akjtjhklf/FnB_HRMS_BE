@@ -5,11 +5,12 @@ import { PaginationQueryDto, PaginatedResponse } from "../../core/dto/pagination
 import { readItems } from "@directus/sdk";
 import EmployeeRepository from "../employees/employee.repository";
 import { getNotificationHelper } from "../notifications";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   declare repo: MonthlyPayrollRepository;
   private employeeRepo: EmployeeRepository;
-  
+
   constructor(repo = new MonthlyPayrollRepository()) {
     super(repo);
     this.employeeRepo = new EmployeeRepository();
@@ -49,7 +50,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           fields: ["id"],
           limit: 1,
         });
-        
+
         if (employees.length > 0) {
           query.filter = query.filter || {};
           query.filter.employee_id = { _eq: employees[0].id };
@@ -85,7 +86,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           },
           fields: ["id"]
         });
-        
+
         if (matchingEmployees.length > 0) {
           employeeFilter = matchingEmployees.map(e => e.id);
           // Add employee filter to query
@@ -106,7 +107,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     }
 
     const result = await this.repo.findAllPaginated(query);
-    
+
     // Manual populate employee data if needed
     if (result.data.length > 0) {
       try {
@@ -163,7 +164,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       filter: { id: { _eq: id } },
       fields: ["*", "employee_id.*", "salary_scheme_id.*"],
     });
-    
+
     if (!payroll) {
       throw new HttpError(404, "Không tìm thấy bảng lương", "PAYROLL_NOT_FOUND");
     }
@@ -174,7 +175,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       if (payroll.status === 'draft') {
         throw new HttpError(403, "Bạn không có quyền xem bảng lương này", "FORBIDDEN");
       }
-      
+
       // Kiểm tra xem payroll có thuộc về employee của user hiện tại không
       try {
         const employees = await this.employeeRepo.findAll({
@@ -182,11 +183,11 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           fields: ["id"],
           limit: 1,
         });
-        
-        const employeeIdFromPayroll = typeof payroll.employee_id === 'object' 
-          ? (payroll.employee_id as any).id 
+
+        const employeeIdFromPayroll = typeof payroll.employee_id === 'object'
+          ? (payroll.employee_id as any).id
           : payroll.employee_id;
-        
+
         if (employees.length === 0 || employees[0].id !== employeeIdFromPayroll) {
           throw new HttpError(403, "Bạn không có quyền xem bảng lương này", "FORBIDDEN");
         }
@@ -196,7 +197,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
         throw new HttpError(403, "Không thể xác minh quyền truy cập", "FORBIDDEN");
       }
     }
-    
+
     // Handle employee population
     if (payroll.employee_id && typeof payroll.employee_id === 'object') {
       // Already populated by Directus
@@ -216,7 +217,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
         console.error("⚠️ Failed to fetch employee for payroll:", err);
       }
     }
-    
+
     return payroll;
   }
 
@@ -321,7 +322,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     return await this.repo.update(id, {
       status: "approved",
       approved_by,
-      approved_at: new Date().toISOString(),
+      approved_at: now().format(DATE_FORMATS.DATETIME),
     });
   }
 
@@ -344,19 +345,19 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
 
     const updated = await this.repo.update(id, {
       status: "paid",
-      paid_at: new Date().toISOString(),
+      paid_at: now().format(DATE_FORMATS.DATETIME),
     });
 
     // Send notification to employee about payslip
     try {
-      const employeeId = typeof payroll.employee_id === 'object' 
-        ? (payroll.employee_id as any).id 
+      const employeeId = typeof payroll.employee_id === 'object'
+        ? (payroll.employee_id as any).id
         : payroll.employee_id;
-      
+
       if (employeeId && payroll.month) {
         const notificationHelper = getNotificationHelper();
         const [year, month] = payroll.month.split('-').map(Number);
-        
+
         await notificationHelper.notifyPayslipReady(employeeId, {
           month,
           year,
@@ -384,10 +385,10 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
         const payroll = await this.repo.findById(id);
         if (!payroll || payroll.status !== "paid") continue;
 
-        const employeeId = typeof payroll.employee_id === 'object' 
-          ? (payroll.employee_id as any).id 
+        const employeeId = typeof payroll.employee_id === 'object'
+          ? (payroll.employee_id as any).id
           : payroll.employee_id;
-        
+
         if (employeeId && payroll.month) {
           const [year, month] = payroll.month.split('-').map(Number);
           await notificationHelper.notifyPayslipReady(employeeId, {
@@ -411,17 +412,17 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
    */
   async generatePayroll(month: string, employeeIds?: string[]) {
     const client = (this.repo as any).client;
-    
+
     // Parse month to get year and month number for attendance query
     const [year, monthNum] = month.split('-').map(Number);
-    
+
     const PENALTY_RATE_PER_HOUR = 10000; // 10,000 VND/hour
     const STANDARD_WORK_DAYS = 26;
-    
+
     // Import attendance service
     const AttendanceService = require('../attendance-shifts/attendance.service').default;
     const attendanceService = new AttendanceService();
-    
+
     // Get attendance report for the month
     let attendanceReport;
     try {
@@ -430,21 +431,21 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       console.error('Error fetching attendance report:', error);
       attendanceReport = [];
     }
-    
+
     // 1. Lấy danh sách nhân viên
     let employeesQuery: any = {
       filter: { status: { _eq: "active" } },
       fields: ["id"], // Only need id
       limit: -1,
     };
-    
+
     if (employeeIds && employeeIds.length > 0) {
       employeesQuery.filter.id = { _in: employeeIds };
     }
-    
+
     const employees = await client.request((readItems as any)("employees", employeesQuery));
     const employeeList = employees || [];
-    
+
     const results = [];
     const errors = [];
 
@@ -459,9 +460,9 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           fields: ["*", "salary_scheme_id.*"],
           limit: 1
         }));
-        
+
         const contract = contracts?.[0];
-        
+
         if (!contract) {
           errors.push({ employee_id: emp.id, error: "No active contract found" });
           continue;
@@ -469,7 +470,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
 
         // 3. Get attendance data
         const employeeAttendance = attendanceReport.find((r: any) => r.employee.id === emp.id);
-        
+
         const attendanceData = employeeAttendance ? {
           total_work_days: employeeAttendance.stats.total_work_days,
           total_work_hours: employeeAttendance.stats.total_work_hours,
@@ -481,17 +482,17 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           total_late_minutes: 0,
           total_early_leave_minutes: 0,
         };
-        
+
         // 4. Calculate base salary based on pay type
         const salaryScheme = contract.salary_scheme_id;
         let baseSalary = contract.base_salary || 0;
         let payType: string = 'monthly'; // Default to monthly
         let hourlyRate: number | null = null;
-        
+
         if (salaryScheme && typeof salaryScheme === 'object') {
           payType = salaryScheme.pay_type || 'monthly';
           const rate = salaryScheme.rate || 0;
-          
+
           switch (payType) {
             case 'hourly':
               baseSalary = rate * attendanceData.total_work_hours;
@@ -511,12 +512,12 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           const dailyRate = baseSalary / STANDARD_WORK_DAYS;
           baseSalary = dailyRate * attendanceData.total_work_days;
         }
-        
+
         // 5. Calculate penalties
         const latePenalty = (attendanceData.total_late_minutes / 60) * PENALTY_RATE_PER_HOUR;
         const earlyLeavePenalty = (attendanceData.total_early_leave_minutes / 60) * PENALTY_RATE_PER_HOUR;
         const totalPenalties = latePenalty + earlyLeavePenalty;
-        
+
         // 6. Check if payroll exists
         const existing = await this.repo.findByEmployeeAndMonth(emp.id, month);
         if (existing) {
@@ -525,11 +526,11 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
         }
 
         // 7. Calculate final amounts
-        const allowances = 0; 
-        const deductions = 0; 
+        const allowances = 0;
+        const deductions = 0;
         const bonuses = 0;
         const overtime = 0;
-        
+
         const { gross_salary, net_salary } = this.calculateSalaries({
           base_salary: baseSalary,
           allowances,
@@ -561,9 +562,9 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
           salary_scheme_id: typeof salaryScheme === 'object' ? salaryScheme.id : salaryScheme,
           ...attendanceData
         });
-        
+
         results.push(payroll);
-        
+
       } catch (err: any) {
         console.error(`Error generating payroll for employee ${emp.id}:`, err);
         errors.push({ employee_id: emp.id, error: err.message });
@@ -579,9 +580,9 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   async lock(id: string) {
     const payroll = await this.repo.findById(id);
     if (!payroll) throw new HttpError(404, "Payroll not found", "PAYROLL_NOT_FOUND");
-    
+
     if (payroll.status === "paid") {
-       throw new HttpError(400, "Cannot lock a paid payroll", "INVALID_STATUS");
+      throw new HttpError(400, "Cannot lock a paid payroll", "INVALID_STATUS");
     }
 
     return await this.repo.update(id, { status: "approved" }); // Map 'lock' to 'approved' or specific status? 
@@ -595,7 +596,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     // The user said "bỏ cái này đi dùng 2 bảng kia thôi" referring to my plan.
     // Existing model has 'pending_approval', 'approved'.
     // Let's assume 'lock' -> 'pending_approval' (cannot be edited by employee, waiting for manager).
-    
+
     return await this.repo.update(id, { status: "pending_approval" });
   }
 
@@ -605,9 +606,9 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
   async unlock(id: string) {
     const payroll = await this.repo.findById(id);
     if (!payroll) throw new HttpError(404, "Payroll not found", "PAYROLL_NOT_FOUND");
-    
+
     if (payroll.status === "paid") {
-       throw new HttpError(400, "Cannot unlock a paid payroll", "INVALID_STATUS");
+      throw new HttpError(400, "Cannot unlock a paid payroll", "INVALID_STATUS");
     }
 
     return await this.repo.update(id, { status: "draft" });
@@ -623,10 +624,10 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     }
 
     // Get employee info
-    const employeeId = typeof payroll.employee_id === 'object' 
-      ? (payroll.employee_id as any).id 
+    const employeeId = typeof payroll.employee_id === 'object'
+      ? (payroll.employee_id as any).id
       : payroll.employee_id;
-    
+
     const employee = await this.employeeRepo.findById(employeeId);
     if (!employee) {
       throw new HttpError(404, "Không tìm thấy nhân viên", "EMPLOYEE_NOT_FOUND");
@@ -639,7 +640,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     try {
       const [year, month] = payroll.month.split('-').map(Number);
       const notificationHelper = getNotificationHelper();
-      
+
       await notificationHelper.notifyPayslipReady(employeeId, {
         month,
         year,
@@ -682,10 +683,10 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
    * Cho phép chuyển đổi linh hoạt giữa các trạng thái
    */
   async changeStatus(
-    id: string, 
-    newStatus: MonthlyPayroll["status"], 
-    options?: { 
-      approved_by?: string; 
+    id: string,
+    newStatus: MonthlyPayroll["status"],
+    options?: {
+      approved_by?: string;
       note?: string;
       force?: boolean; // Bỏ qua validation status flow
     }
@@ -696,7 +697,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     }
 
     const currentStatus = payroll.status || "draft";
-    
+
     // Define valid transitions (unless force=true)
     const validTransitions: Record<string, string[]> = {
       draft: ["pending_approval", "approved"], // draft có thể chuyển thẳng sang approved
@@ -724,12 +725,12 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
 
     // Add timestamp and approver based on new status
     if (newStatus === "approved") {
-      updateData.approved_at = new Date().toISOString();
+      updateData.approved_at = now().format(DATE_FORMATS.DATETIME);
       if (options?.approved_by) {
         updateData.approved_by = options.approved_by;
       }
     } else if (newStatus === "paid") {
-      updateData.paid_at = new Date().toISOString();
+      updateData.paid_at = now().format(DATE_FORMATS.DATETIME);
     } else if (newStatus === "draft") {
       // Reset approval info when going back to draft
       updateData.approved_at = null;
@@ -750,12 +751,12 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
 
     // Perform update
     await this.repo.update(id, updateData);
-    
+
     // IMPORTANT: Fetch fresh data after update because Directus SDK may return stale data
     const updatedPayroll = await this.repo.findById(id);
-    
+
     console.log(`✅ After update - status in DB: "${updatedPayroll?.status}"`);
-    
+
     if (!updatedPayroll) {
       throw new HttpError(404, "Không tìm thấy bảng lương sau khi cập nhật", "PAYROLL_NOT_FOUND");
     }
@@ -765,7 +766,28 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
       console.error(`❌ Update verification failed! Expected: "${newStatus}", Got: "${updatedPayroll.status}"`);
       throw new HttpError(500, "Cập nhật trạng thái không thành công", "UPDATE_FAILED");
     }
-    
+
+    // Send notification to employee when payroll is pending approval
+    if (newStatus === "pending_approval") {
+      try {
+        const employeeId = typeof updatedPayroll.employee_id === 'object'
+          ? (updatedPayroll.employee_id as any).id
+          : updatedPayroll.employee_id;
+
+        if (employeeId) {
+          const notificationHelper = getNotificationHelper();
+          await notificationHelper.notifyPayrollPendingApproval(employeeId, {
+            month: updatedPayroll.month,
+            payrollId: updatedPayroll.id,
+          });
+          console.log(`📧 Sent payroll pending notification to employee ${employeeId}`);
+        }
+      } catch (notifyErr) {
+        console.error("⚠️ Failed to send payroll pending notification:", notifyErr);
+        // Don't throw - notification failure shouldn't break the status change
+      }
+    }
+
     return updatedPayroll;
   }
 
@@ -773,7 +795,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
    * Thay đổi trạng thái hàng loạt
    */
   async changeStatusBulk(
-    ids: string[], 
+    ids: string[],
     newStatus: MonthlyPayroll["status"],
     options?: { approved_by?: string; force?: boolean }
   ): Promise<{ success: number; failed: number; errors: Array<{ id: string; error: string }> }> {
@@ -802,7 +824,7 @@ export class MonthlyPayrollService extends BaseService<MonthlyPayroll> {
     }
 
     const payrolls = await this.repo.findAll({ filter });
-    
+
     const stats: Record<string, number> = {
       draft: 0,
       pending_approval: 0,

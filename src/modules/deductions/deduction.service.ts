@@ -6,6 +6,7 @@ import {
   PaginatedResponse,
   PaginationQueryDto,
 } from "../../core/dto/pagination.dto";
+import { now, DATE_FORMATS } from "../../utils/date.utils";
 
 export class DeductionService extends BaseService<Deduction> {
   constructor(repo = new DeductionRepository()) {
@@ -33,6 +34,7 @@ export class DeductionService extends BaseService<Deduction> {
     if (!data.employee_id)
       throw new HttpError(400, "Thiếu employee_id", "BAD_REQUEST");
 
+    const nowStr = now().format(DATE_FORMATS.DATETIME);
     const newItem: Deduction = {
       id: randomUUID(),
       employee_id: data.employee_id,
@@ -42,8 +44,8 @@ export class DeductionService extends BaseService<Deduction> {
       related_shift_id: data.related_shift_id ?? null,
       note: data.note ?? null,
       status: data.status ?? "pending",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: nowStr,
+      updated_at: nowStr,
     };
 
     return await this.repo.create(newItem);
@@ -56,7 +58,7 @@ export class DeductionService extends BaseService<Deduction> {
 
     return await this.repo.update(id, {
       ...data,
-      updated_at: new Date().toISOString(),
+      updated_at: now().format(DATE_FORMATS.DATETIME),
     });
   }
 

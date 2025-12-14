@@ -75,7 +75,7 @@ export class RoleRepository extends DirectusRepository<Role> {
       console.error("❌ Directus pagination error (roles):", error);
       throw new HttpError(
         500,
-        "Không thể lấy danh sách roles từ Directus",
+        "Không thể lấy danh sách vai trò từ Directus",
         "DIRECTUS_FETCH_ERROR",
         error
       );
@@ -101,7 +101,7 @@ export class RoleRepository extends DirectusRepository<Role> {
       console.error("❌ Directus findAll error (roles):", error);
       throw new HttpError(
         500,
-        "Không thể lấy danh sách roles từ Directus",
+        "Không thể lấy danh sách vai trò từ Directus",
         "DIRECTUS_FETCH_ERROR",
         error
       );

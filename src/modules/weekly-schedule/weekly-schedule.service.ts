@@ -10,6 +10,14 @@ import {
   PaginatedResponse,
   PaginationQueryDto,
 } from "../../core/dto/pagination.dto";
+import {
+  now,
+  parseDate,
+  toDateString,
+  getDaysInWeek,
+  DATE_FORMATS,
+  dayjs,
+} from "../../utils/date.utils";
 
 export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
   private shiftTypeRepo: ShiftTypeRepository;
@@ -94,7 +102,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
 
     return await this.repo.update(id, {
       status: "scheduled",
-      published_at: new Date().toISOString(),
+      published_at: now().format(DATE_FORMATS.DATETIME),
     });
   }
 
@@ -139,13 +147,12 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
       console.log("🔧 Creating weekly schedule with client:", !!client);
 
       // 1. Tạo lịch tuần
-      const startDate = new Date(data.start_date);
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
+      const startDate = parseDate(data.start_date);
+      const endDate = startDate.add(6, "day");
 
       const weeklySchedule = await weeklyRepo.create({
-        week_start: startDate.toISOString().split("T")[0],
-        week_end: endDate.toISOString().split("T")[0],
+        week_start: toDateString(startDate),
+        week_end: toDateString(endDate),
         status: "draft",
       });
 
@@ -155,12 +162,12 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
       const shiftTypes = await shiftTypeRepo.findAll();
       console.log("✅ Found shift types:", shiftTypes.length);
 
-      // 3. Tạo shifts
+      // 3. Tạo shifts - sử dụng getDaysInWeek từ date utils
+      const daysInWeek = getDaysInWeek(toDateString(startDate));
       const shiftsToCreate = [];
-      for (let i = 0; i < 7; i++) {
-        const currentDate = new Date(startDate);
-        currentDate.setDate(startDate.getDate() + i);
-        const dayOfWeek = currentDate.getDay();
+
+      for (const dateStr of daysInWeek) {
+        const dayOfWeek = parseDate(dateStr).day();
         const dayLabel = [
           "Chủ nhật",
           "Thứ 2",
@@ -170,15 +177,14 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
           "Thứ 6",
           "Thứ 7",
         ][dayOfWeek];
-        const dateStr = currentDate.toISOString().slice(0, 10);
 
         for (const type of shiftTypes) {
           shiftsToCreate.push({
-            schedule_id: weeklySchedule.id, // ✅ FIXED: Đổi từ weekly_schedule_id
+            schedule_id: weeklySchedule.id,
             shift_type_id: type.id,
             shift_date: dateStr,
-            start_at: type.start_time, // ✅ FIXED: Đổi từ start_time
-            end_at: type.end_time, // ✅ FIXED: Đổi từ end_time
+            start_at: type.start_time,
+            end_at: type.end_time,
             total_required: 3, // Default
             notes: `${dayLabel} - Ca ${type.name}`,
           });
@@ -229,7 +235,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
     // Check 2: Mỗi shift có position requirements chưa
     const ShiftPositionRequirementRepository = require("../shift-position-requirements/shift-position-requirement.repository").default;
     const reqRepo = new ShiftPositionRequirementRepository();
-    
+
     for (const shift of shifts) {
       const reqs = await reqRepo.findAll({
         filter: { shift_id: { _eq: shift.id } },
@@ -268,19 +274,19 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
     const shiftIds = shifts.map(s => s.id);
 
     // ✅ OPTIMIZATION: Load all data upfront (2 queries instead of N*M)
-    const allRequirements = shiftIds.length > 0 
+    const allRequirements = shiftIds.length > 0
       ? await this.requirementRepo.findAll({
-          filter: { shift_id: { _in: shiftIds } },
-        })
+        filter: { shift_id: { _in: shiftIds } },
+      })
       : [];
 
     const allAssignments = shiftIds.length > 0
       ? await this.assignmentRepo.findAll({
-          filter: {
-            shift_id: { _in: shiftIds },
-            status: { _nin: ["cancelled"] },
-          },
-        })
+        filter: {
+          shift_id: { _in: shiftIds },
+          status: { _nin: ["cancelled"] },
+        },
+      })
       : [];
 
     // Group by shift_id and position_id in memory
@@ -375,7 +381,7 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
 
     const EmployeeAvailabilityRepository = require("../employee-availability/employee-availability.repository").default;
     const ScheduleAssignmentRepository = require("../schedule-assignments/schedule-assignment.repository").default;
-    
+
     const availRepo = new EmployeeAvailabilityRepository();
     const assignRepo = new ScheduleAssignmentRepository();
 
@@ -414,23 +420,23 @@ export class WeeklyScheduleService extends BaseService<WeeklySchedule> {
       shifts: {
         total: shifts.length,
         byDay: shifts.reduce((acc: Record<number, number>, shift) => {
-          const day = new Date(shift.shift_date).getDay();
+          const day = parseDate(shift.shift_date).day();
           acc[day] = (acc[day] || 0) + 1;
           return acc;
         }, {} as Record<number, number>),
       },
       employees: {
-        totalWithAvailability: availabilities.length > 0 
-          ? new Set(availabilities.map((a: any) => a.employee_id)).size 
+        totalWithAvailability: availabilities.length > 0
+          ? new Set(availabilities.map((a: any) => a.employee_id)).size
           : 0,
-        totalAssigned: assignments.length > 0 
-          ? new Set(assignments.map((a: any) => a.employee_id)).size 
+        totalAssigned: assignments.length > 0
+          ? new Set(assignments.map((a: any) => a.employee_id)).size
           : 0,
         avgShiftsPerEmployee:
           employeeAssignmentCounts.length > 0
             ? Math.round(
-                (employeeAssignmentCounts.reduce((a: number, b: number) => a + b, 0) / employeeAssignmentCounts.length) * 100
-              ) / 100
+              (employeeAssignmentCounts.reduce((a: number, b: number) => a + b, 0) / employeeAssignmentCounts.length) * 100
+            ) / 100
             : 0,
         minShifts: employeeAssignmentCounts.length > 0 ? Math.min(...employeeAssignmentCounts) : 0,
         maxShifts: employeeAssignmentCounts.length > 0 ? Math.max(...employeeAssignmentCounts) : 0,
