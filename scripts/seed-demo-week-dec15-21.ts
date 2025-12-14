@@ -260,6 +260,110 @@ async function seedDemo() {
         const contracts = existingContracts;
         console.log(`   ✅ Using ${contracts.length} contracts`);
 
+        // ========================================================================
+        // PHASE 2.5: Create User Accounts for Employees
+        // ========================================================================
+        console.log('\n🔐 PHASE 2.5: Creating User Accounts for Employees...\n');
+
+        const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+        const token = await getAuthToken();
+
+        // 2.5.1 Get/Create Employee Role
+        console.log('   👔 Getting/Creating Employee Role...');
+        let employeeRole: any = null;
+
+        const existingRoles: any[] = await directus.request(readRoles());
+        employeeRole = existingRoles.find((r: any) => r.name === 'Employee');
+
+        if (!employeeRole) {
+            const roleResponse = await fetch(`${directusUrl}/roles`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: 'Employee',
+                    icon: 'badge',
+                    description: 'Vai trò dành cho nhân viên',
+                    app_access: true,
+                    admin_access: false,
+                }),
+            });
+
+            if (roleResponse.ok) {
+                const roleData = await roleResponse.json();
+                employeeRole = roleData.data;
+                console.log(`   ✅ Created Employee role: ${employeeRole.id}`);
+            } else {
+                console.log(`   ⚠️ Could not create role: ${await roleResponse.text()}`);
+            }
+        } else {
+            console.log(`   ✅ Found existing Employee role: ${employeeRole.id}`);
+        }
+
+        // 2.5.2 Create users for employees
+        if (employeeRole) {
+            console.log('   👥 Creating Directus users for employees...');
+
+            let usersCreated = 0;
+            let usersLinked = 0;
+
+            for (const emp of employees) {
+                if (!emp.email) continue;
+
+                try {
+                    // Check if user exists
+                    const userCheckResponse = await fetch(`${directusUrl}/users?filter[email][_eq]=${encodeURIComponent(emp.email)}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    const userCheckData = await userCheckResponse.json();
+
+                    if (userCheckData.data && userCheckData.data.length > 0) {
+                        // User exists, link to employee if not linked
+                        const existingUser = userCheckData.data[0];
+                        if (!emp.user_id) {
+                            await directus.request(updateItem('employees', emp.id, { user_id: existingUser.id }));
+                            usersLinked++;
+                        }
+                    } else {
+                        // Create new user
+                        const createUserResponse = await fetch(`${directusUrl}/users`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                email: emp.email,
+                                password: 'Employee123!',
+                                first_name: emp.first_name || emp.full_name?.split(' ').pop() || 'Employee',
+                                last_name: emp.last_name || emp.full_name?.split(' ').slice(0, -1).join(' ') || '',
+                                role: employeeRole.id,
+                                status: 'active',
+                            }),
+                        });
+
+                        if (createUserResponse.ok) {
+                            const userData = await createUserResponse.json();
+                            await directus.request(updateItem('employees', emp.id, { user_id: userData.data.id }));
+                            usersCreated++;
+                        }
+                    }
+                } catch (err: any) {
+                    // Skip errors silently
+                }
+            }
+
+            console.log(`   ✅ Users: ${usersCreated} created, ${usersLinked} linked`);
+            console.log(`   🔑 Default password: Employee123!`);
+        }
+
         // PHASE 3: Schedule Data
         console.log('\n📅 PHASE 3: Seeding Schedule Data...\n');
 

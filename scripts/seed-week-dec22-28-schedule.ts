@@ -4,8 +4,8 @@
  */
 
 import 'dotenv/config';
-import { directus, ensureAuth } from '../src/utils/directusClient';
-import { createItems, readMe, readItems, deleteItems } from '@directus/sdk';
+import { directus, ensureAuth, getAuthToken } from '../src/utils/directusClient';
+import { createItems, readMe, readItems, deleteItems, readRoles, updateItem } from '@directus/sdk';
 
 const CONFIG = {
     TARGET_WEEK_START: '2025-12-22',
@@ -81,13 +81,87 @@ async function seedWeek22_28() {
 
         const employees: any[] = await directus.request(readItems('employees', {
             limit: -1,
-            fields: ['id', 'employee_code', 'status'],
+            fields: ['id', 'employee_code', 'email', 'first_name', 'last_name', 'full_name', 'user_id', 'status'],
             filter: { status: { _eq: 'active' } }
         }));
         console.log(`Found ${employees.length} active employees`);
 
         if (positions.length === 0 || shiftTypes.length === 0 || employees.length === 0) {
             throw new Error('Missing required data! Run seed-demo-week-dec15-21.ts first.');
+        }
+
+        // =====================================================
+        // Create User Accounts for Employees (if needed)
+        // =====================================================
+        console.log('\n[USER ACCOUNTS] Creating user accounts for employees...');
+
+        const directusUrl = process.env.DIRECTUS_URL || 'http://localhost:8055';
+        const token = await getAuthToken();
+
+        // Get/Create Employee Role
+        let employeeRole: any = null;
+        const existingRoles: any[] = await directus.request(readRoles());
+        employeeRole = existingRoles.find((r: any) => r.name === 'Employee');
+
+        if (!employeeRole) {
+            const roleResponse = await fetch(`${directusUrl}/roles`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: 'Employee',
+                    icon: 'badge',
+                    description: 'Vai tro danh cho nhan vien',
+                    app_access: true,
+                    admin_access: false,
+                }),
+            });
+
+            if (roleResponse.ok) {
+                const roleData = await roleResponse.json();
+                employeeRole = roleData.data;
+                console.log(`   Created Employee role: ${employeeRole.id}`);
+            }
+        } else {
+            console.log(`   Found Employee role: ${employeeRole.id}`);
+        }
+
+        // Create users for employees without user_id
+        if (employeeRole) {
+            let usersCreated = 0;
+            for (const emp of employees) {
+                if (!emp.email || emp.user_id) continue;
+
+                try {
+                    const createUserResponse = await fetch(`${directusUrl}/users`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            email: emp.email,
+                            password: 'Employee123!',
+                            first_name: emp.first_name || emp.full_name?.split(' ').pop() || 'Employee',
+                            last_name: emp.last_name || '',
+                            role: employeeRole.id,
+                            status: 'active',
+                        }),
+                    });
+
+                    if (createUserResponse.ok) {
+                        const userData = await createUserResponse.json();
+                        await directus.request(updateItem('employees', emp.id, { user_id: userData.data.id }));
+                        usersCreated++;
+                    }
+                } catch (err: any) {
+                    // Skip errors
+                }
+            }
+            console.log(`   Users created: ${usersCreated}`);
+            if (usersCreated > 0) console.log(`   Default password: Employee123!`);
         }
 
         // =====================================================
